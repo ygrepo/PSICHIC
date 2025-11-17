@@ -1,4 +1,4 @@
-name: psichic_fp
+name: psichic
 channels:
   - pytorch  # Highest priority for pytorch and related packages
   - nvidia
@@ -6,11 +6,11 @@ channels:
   - defaults
   - pyg
 dependencies:
-  - python=3.8
+  - python=3.10
   - pytorch
   - torchvision
   - torchaudio
-  - pytorch-cuda=11.8
+  - pytorch-cuda=12.1
   - pyg::pyg
   - pip
   - pip:
