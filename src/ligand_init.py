@@ -8,97 +8,129 @@ import numpy as np
 
 import torch
 
-fdefName = os.path.join(RDConfig.RDDataDir,'BaseFeatures.fdef')
+## FILE from pytorch geometric version 2.
+from itertools import chain
+from typing import Any, Tuple, Union
+
+import torch
+from scipy.sparse.csgraph import minimum_spanning_tree
+from torch import Tensor
+
+from torch_geometric.utils import (
+    from_scipy_sparse_matrix,
+    to_scipy_sparse_matrix,
+    to_undirected,
+)
+
+from pathlib import Path
+
+from tqdm import tqdm
+
+
+from src.utils import get_logger
+
+logger = get_logger(__name__)
+
+fdefName = os.path.join(RDConfig.RDDataDir, "BaseFeatures.fdef")
+logger.info(fdefName)
 factory = ChemicalFeatures.BuildFeatureFactory(fdefName)
-import sys
-
-# Check if the code is running in a Jupyter notebook
-if 'ipykernel' in sys.modules:
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
 
 
-
-
-def one_of_k_encoding(x, allowable_set):
+def one_of_k_encoding(x: int, allowable_set: list) -> list:
     if x not in allowable_set:
         raise Exception("input {0} not in allowable set{1}:".format(x, allowable_set))
     return list(map(lambda s: x == s, allowable_set))
 
-def one_of_k_encoding_unk(x, allowable_set):
+
+def one_of_k_encoding_unk(x: int, allowable_set: list) -> list:
     """Maps inputs not in the allowable set to the last element."""
     if x not in allowable_set:
         x = allowable_set[-1]
     return list(map(lambda s: x == s, allowable_set))
 
 
-def atom_features(atom):
-    #encoding = one_of_k_encoding_unk(atom.GetSymbol(),['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na','Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb','Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H','Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr','Cr', 'Pt', 'Hg', 'Pb', 'Unknown'])
-    encoding = one_of_k_encoding(atom.GetDegree(), [0,1,2,3,4,5,6,7,8,9,10]) + one_of_k_encoding_unk(atom.GetTotalNumHs(), [0,1,2,3,4,5,6,7,8,9,10])
-    encoding += one_of_k_encoding_unk(atom.GetImplicitValence(), [0,1,2,3,4,5,6,7,8,9,10]) 
-    encoding += one_of_k_encoding_unk(atom.GetHybridization(), [
-                      Chem.rdchem.HybridizationType.SP, Chem.rdchem.HybridizationType.SP2,
-                      Chem.rdchem.HybridizationType.SP3, Chem.rdchem.HybridizationType.SP3D,
-                      Chem.rdchem.HybridizationType.SP3D2, 'other'])
-    # encoding += one_of_k_encoding_unk(atom.GetFormalCharge(), [0,-1,1,2,-100]) 
-    # encoding += one_of_k_encoding_unk(atom.GetNumRadicalElectrons(), [0,1,2,-100]) 
+def atom_features(atom: Chem.rdchem.Atom) -> np.ndarray:
+    # encoding = one_of_k_encoding_unk(atom.GetSymbol(),['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na','Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb','Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H','Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr','Cr', 'Pt', 'Hg', 'Pb', 'Unknown'])
+    encoding = one_of_k_encoding(
+        atom.GetDegree(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    ) + one_of_k_encoding_unk(atom.GetTotalNumHs(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    encoding += one_of_k_encoding_unk(
+        atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    )
+    encoding += one_of_k_encoding_unk(
+        atom.GetHybridization(),
+        [
+            Chem.rdchem.HybridizationType.SP,
+            Chem.rdchem.HybridizationType.SP2,
+            Chem.rdchem.HybridizationType.SP3,
+            Chem.rdchem.HybridizationType.SP3D,
+            Chem.rdchem.HybridizationType.SP3D2,
+            "other",
+        ],
+    )
+    # encoding += one_of_k_encoding_unk(atom.GetFormalCharge(), [0,-1,1,2,-100])
+    # encoding += one_of_k_encoding_unk(atom.GetNumRadicalElectrons(), [0,1,2,-100])
     encoding += [atom.GetIsAromatic()]
     # encoding += [atom.IsInRing()]
 
     try:
-        encoding += one_of_k_encoding_unk(
-                    atom.GetProp('_CIPCode'),
-                    ['R', 'S']) + [atom.HasProp('_ChiralityPossible')]
-    except:
-        encoding += [0, 0] + [atom.HasProp('_ChiralityPossible')]
-    
+        encoding += one_of_k_encoding_unk(atom.GetProp("_CIPCode"), ["R", "S"]) + [
+            atom.HasProp("_ChiralityPossible")
+        ]
+    except exception as e:
+        logger.warning(f"Chirality error: {e}")
+        encoding += [0, 0] + [atom.HasProp("_ChiralityPossible")]
+
     return np.array(encoding)
 
 
-
-class MoleculeGraphDataset():
-    def __init__(self,atom_classes=None, halogen_detail=False, save_path=None):
+class MoleculeGraphDataset:
+    def __init__(
+        self, atom_classes: list = None, halogen_detail=False, save_path: Path = None
+    ):
         ## ATOM CLASSES ##
         self.ATOM_CODES = {}
         if atom_classes is None:
-            metals = ([3, 4, 11, 12, 13] + list(range(19, 32))
-                      + list(range(37, 51)) + list(range(55, 84))
-                      + list(range(87, 104)))
+            metals = (
+                [3, 4, 11, 12, 13]
+                + list(range(19, 32))
+                + list(range(37, 51))
+                + list(range(55, 84))
+                + list(range(87, 104))
+            )
 
             self.FEATURE_NAMES = []
             if halogen_detail:
                 atom_classes = [
-                    (5, 'B'),
-                    (6, 'C'),
-                    (7, 'N'),
-                    (8, 'O'),
-                    (15, 'P'),
-                    (16, 'S'),
-                    (34, 'Se'),
+                    (5, "B"),
+                    (6, "C"),
+                    (7, "N"),
+                    (8, "O"),
+                    (15, "P"),
+                    (16, "S"),
+                    (34, "Se"),
                     ## halogen
-                    (9, 'F'),
-                    (17, 'Cl'),
-                    (35, 'Br'),
-                    (53, 'I'),
+                    (9, "F"),
+                    (17, "Cl"),
+                    (35, "Br"),
+                    (53, "I"),
                     ## halogen
-                    (metals, 'metal')
+                    (metals, "metal"),
                 ]
             else:
                 atom_classes = [
-                    (5, 'B'),
-                    (6, 'C'),
-                    (7, 'N'),
-                    (8, 'O'),
-                    (15, 'P'),
-                    (16, 'S'),
-                    (34, 'Se'),
+                    (5, "B"),
+                    (6, "C"),
+                    (7, "N"),
+                    (8, "O"),
+                    (15, "P"),
+                    (16, "S"),
+                    (34, "Se"),
                     ## halogen
-                    ([9, 17, 35, 53], 'halogen'),
+                    ([9, 17, 35, 53], "halogen"),
                     ## halogen
-                    (metals, 'metal')
+                    (metals, "metal"),
                 ]
-            
 
         self.NUM_ATOM_CLASSES = len(atom_classes)
         for code, (atom, name) in enumerate(atom_classes):
@@ -110,27 +142,34 @@ class MoleculeGraphDataset():
             self.FEATURE_NAMES.append(name)
 
         ## Extra atom feature to extract
-        self.feat_types = ['Donor', 'Acceptor', 'Hydrophobe', 'LumpedHydrophobe']
+        self.feat_types = ["Donor", "Acceptor", "Hydrophobe", "LumpedHydrophobe"]
 
         ## Bond feature
-        self.edge_dict = {BondType.SINGLE: 1, BondType.DOUBLE: 2,
-                     BondType.TRIPLE: 3, BondType.AROMATIC: 4,
-                         BondType.UNSPECIFIED: 1}
+        self.edge_dict = {
+            BondType.SINGLE: 1,
+            BondType.DOUBLE: 2,
+            BondType.TRIPLE: 3,
+            BondType.AROMATIC: 4,
+            BondType.UNSPECIFIED: 1,
+        }
         ## File Paths
         self.save_path = save_path
 
-    def hybridization_onehot(self,hybrid_type):
+    def hybridization_onehot(
+        self, hybrid_type: Chem.rdchem.HybridizationType
+    ) -> np.ndarray:
         hybrid_type = str(hybrid_type)
-        types = {'S': 0, 'SP': 1, 'SP2': 2, 'SP3': 3, 'SP3D': 4, 'SP3D2': 5}
+        types = {"S": 0, "SP": 1, "SP2": 2, "SP3": 3, "SP3D": 4, "SP3D2": 5}
 
         encoding = np.zeros(len(types))
         try:
             encoding[types[hybrid_type]] = 1.0
-        except:
+        except Exception as e:
+            logger.warning(f"Hybridization error: {e}")
             pass
         return encoding
 
-    def encode_num(self,atomic_num):
+    def encode_num(self, atomic_num: int) -> np.ndarray:
         """Encode atom type with a binary vector. If atom type is not included in
         the `atom_classes`, its encoding is an all-zeros vector.
 
@@ -146,28 +185,30 @@ class MoleculeGraphDataset():
         """
 
         if not isinstance(atomic_num, int):
-            raise TypeError('Atomic number must be int, %s was given'
-                            % type(atomic_num))
+            raise TypeError(
+                "Atomic number must be int, %s was given" % type(atomic_num)
+            )
 
         encoding = np.zeros(self.NUM_ATOM_CLASSES)
         try:
             encoding[self.ATOM_CODES[atomic_num]] = 1.0
-        except:
+        except Exception as e:
+            logger.warning(f"Atom encoding error: {e}")
             pass
         return encoding
 
-    def atom_feature_extract(self,atom):
-        '''
-            Atom Feature Extraction:
-                0 - Degree
-                1 - Total Valency
-                2 to 7 - Hybridization Type One-hot Encoding
-                8 - Number of Radical Electrons
-                9 - Number of Formal Charge
-                10 - Aromatic
-                11 - Belongs to a Ring
-                12 - Final to X belongs to Atom Classes
-        '''
+    def atom_feature_extract(self, atom: Chem.rdchem.Atom) -> list:
+        """
+        Atom Feature Extraction:
+            0 - Degree
+            1 - Total Valency
+            2 to 7 - Hybridization Type One-hot Encoding
+            8 - Number of Radical Electrons
+            9 - Number of Formal Charge
+            10 - Aromatic
+            11 - Belongs to a Ring
+            12 - Final to X belongs to Atom Classes
+        """
 
         feat = []
 
@@ -179,11 +220,11 @@ class MoleculeGraphDataset():
         feat.append(int(atom.GetIsAromatic()))
         feat.append(int(atom.IsInRing()))
         # Atom class
-        #feat += self.encode_num(atom.GetAtomicNum()).tolist()
+        # feat += self.encode_num(atom.GetAtomicNum()).tolist()
 
         return feat
 
-    def mol_feature(self,mol):
+    def mol_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_ids = []
         atom_feats = []
         for atom in mol.GetAtoms():
@@ -195,7 +236,7 @@ class MoleculeGraphDataset():
 
         return feature
 
-    def mol_extra_feature(self, mol):
+    def mol_extra_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_num = len(mol.GetAtoms())
         feature = np.zeros((atom_num, len(self.feat_types)))
 
@@ -209,7 +250,7 @@ class MoleculeGraphDataset():
 
         return feature
 
-    def mol_simplified_feature(self,mol):
+    def mol_simplified_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_ids = []
         atom_feats = []
         for atom in mol.GetAtoms():
@@ -223,30 +264,71 @@ class MoleculeGraphDataset():
         feature = np.array(list(zip(*sorted(zip(atom_ids, atom_feats))))[-1])
 
         return feature
-    
-    def mol_sequence_simplified_feature(self,mol):
-        
+
+    def mol_sequence_simplified_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
+
         atom_ids = []
         atom_feats = []
         for atom in mol.GetAtoms():
-        
+
             atom_ids.append(atom.GetIdx())
-            onehot_label = one_of_k_encoding_unk(atom.GetSymbol(),
-                                  ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca', 'Fe', 'As', 'Al',
-                                   'I', 'B', 'V', 'K', 'Tl', 'Yb', 'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',
-                                   'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb',
-                                   'Unknown'])
+            onehot_label = one_of_k_encoding_unk(
+                atom.GetSymbol(),
+                [
+                    "C",
+                    "N",
+                    "O",
+                    "S",
+                    "F",
+                    "Si",
+                    "P",
+                    "Cl",
+                    "Br",
+                    "Mg",
+                    "Na",
+                    "Ca",
+                    "Fe",
+                    "As",
+                    "Al",
+                    "I",
+                    "B",
+                    "V",
+                    "K",
+                    "Tl",
+                    "Yb",
+                    "Sb",
+                    "Sn",
+                    "Ag",
+                    "Pd",
+                    "Co",
+                    "Se",
+                    "Ti",
+                    "Zn",
+                    "H",
+                    "Li",
+                    "Ge",
+                    "Cu",
+                    "Au",
+                    "Ni",
+                    "Cd",
+                    "In",
+                    "Mn",
+                    "Zr",
+                    "Cr",
+                    "Pt",
+                    "Hg",
+                    "Pb",
+                    "Unknown",
+                ],
+            )
             out = np.array(onehot_label).nonzero()[0]
             atom_feats.append(out)
-        
+
         feature = np.array(list(zip(*sorted(zip(atom_ids, atom_feats))))[-1])
-        
+
         return feature
 
-
-
-
-    def mol_full_feature(self, mol):
+    def mol_full_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_ids = []
         atom_feats = []
         for atom in mol.GetAtoms():
@@ -257,9 +339,9 @@ class MoleculeGraphDataset():
 
         return feature
 
-    def bond_feature(self,mol):
+    def bond_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_num = len(mol.GetAtoms())
-        adj = np.zeros((atom_num,atom_num))
+        adj = np.zeros((atom_num, atom_num))
 
         for b in mol.GetBonds():
             v1 = b.GetBeginAtomIdx()
@@ -270,62 +352,50 @@ class MoleculeGraphDataset():
 
         return adj
 
-    def junction_tree(self,mol):
-        tree_edge_index, atom2clique_index, num_cliques, x_clique = tree_decomposition(mol,return_vocab=True)
+    def junction_tree(self, mol: Chem.rdchem.Mol) -> dict:
+        tree_edge_index, atom2clique_index, num_cliques, x_clique = tree_decomposition(
+            mol, return_vocab=True
+        )
         ## if weird compounds => each assign the separate cluster
         if atom2clique_index.nelement() == 0:
             num_cliques = len(mol.GetAtoms())
-            x_clique = torch.tensor([3]*num_cliques)
-            atom2clique_index = torch.stack([torch.arange(num_cliques),
-                                             torch.arange(num_cliques)])
-        tree = dict(tree_edge_index=tree_edge_index,
-             atom2clique_index=atom2clique_index,
-             num_cliques=num_cliques,
-             x_clique=x_clique)
-        
+            x_clique = torch.tensor([3] * num_cliques)
+            atom2clique_index = torch.stack(
+                [torch.arange(num_cliques), torch.arange(num_cliques)]
+            )
+        tree = dict(
+            tree_edge_index=tree_edge_index,
+            atom2clique_index=atom2clique_index,
+            num_cliques=num_cliques,
+            x_clique=x_clique,
+        )
+
         return tree
 
-
-    def featurize(self,mol,type='atom_type'):
-        if type=='atom_type':
+    def featurize(self, mol, type="atom_type") -> tuple[np.ndarray, np.ndarray]:
+        if type == "atom_type":
             atom_feature = self.mol_simplified_feature(mol)
-        elif type =='detailed_atom_type':
+        elif type == "detailed_atom_type":
             atom_feature = self.mol_sequence_simplified_feature(mol)
-        elif type=='atom_feature':
+        elif type == "atom_feature":
             base_feat = self.mol_feature(mol)
             extra_feat = self.mol_extra_feature(mol)
             atom_feature = np.concatenate((base_feat, extra_feat), axis=1)
-           
-        elif type=='atom_full_feature':
+
+        elif type == "atom_full_feature":
             atom_feature = self.mol_full_feature(mol)
-            #extra_feat = self.mol_extra_feature(mol)
-            #atom_feature = np.concatenate((base_feat, extra_feat), axis=1)
+            # extra_feat = self.mol_extra_feature(mol)
+            # atom_feature = np.concatenate((base_feat, extra_feat), axis=1)
         else:
-            raise Exception('atom_type or atom_feature')
+            logger.error("Not implemented")
+            raise Exception("atom_type or atom_feature")
         bond_feature = self.bond_feature(mol)
 
         return atom_feature, bond_feature
 
 
-
-
-## FILE from pytorch geometric version 2.
-from itertools import chain
-from typing import Any, Tuple, Union
-
-import torch
-from scipy.sparse.csgraph import minimum_spanning_tree
-from torch import Tensor
-
-from torch_geometric.utils import (
-    from_scipy_sparse_matrix,
-    to_scipy_sparse_matrix,
-    to_undirected,
-)
-
-
 def tree_decomposition(
-    mol: Any,
+    mol: Chem.rdchem.Mol,
     return_vocab: bool = False,
 ) -> Union[Tuple[Tensor, Tensor, int], Tuple[Tensor, Tensor, int, Tensor]]:
     r"""The tree decomposition algorithm of molecules from the
@@ -344,10 +414,10 @@ def tree_decomposition(
     :rtype: :obj:`(LongTensor, LongTensor, int)` if :obj:`return_vocab` is
         :obj:`False`, else :obj:`(LongTensor, LongTensor, int, LongTensor)`
     """
-    import rdkit.Chem as Chem
+    # import rdkit.Chem as Chem
 
     # Cliques = rings and bonds.
-    cliques = [list(x) for x in Chem.GetSymmSSSR(mol)]
+    cliques = [list(x) for x in ChemicalFeatures.GetSymmSSSR(mol)]
     xs = [0] * len(cliques)
     for bond in mol.GetBonds():
         if not bond.IsInRing():
@@ -441,36 +511,39 @@ def tree_decomposition(
         return edge_index, atom2clique, len(cliques), vocab
     else:
         return edge_index, atom2clique, len(cliques)
-    
+
 
 ###
 
-def smiles2graph(m_str):
+
+def smiles2graph(m_str: str) -> dict:
     mgd = MoleculeGraphDataset(halogen_detail=False)
     mol = Chem.MolFromSmiles(m_str)
-    #mol = get_mol(m_str)
-    atom_feature, bond_feature = mgd.featurize(mol,'atom_full_feature')
-    atom_idx, _ = mgd.featurize(mol,'atom_type')
+    # mol = get_mol(m_str)
+    atom_feature, bond_feature = mgd.featurize(mol, "atom_full_feature")
+    atom_idx, _ = mgd.featurize(mol, "atom_type")
     tree = mgd.junction_tree(mol)
 
     out_dict = {
-        'smiles':m_str,
-        'atom_feature':torch.tensor(atom_feature),#.to(torch.int8),
-        'atom_types':'|'.join([i.GetSymbol() for i in mol.GetAtoms()]),
-        'atom_idx':torch.tensor(atom_idx),#.to(torch.int8),
-        'bond_feature':torch.tensor(bond_feature),#.to(torch.int8),
-
+        "smiles": m_str,
+        "atom_feature": torch.tensor(atom_feature),  # .to(torch.int8),
+        "atom_types": "|".join([i.GetSymbol() for i in mol.GetAtoms()]),
+        "atom_idx": torch.tensor(atom_idx),  # .to(torch.int8),
+        "bond_feature": torch.tensor(bond_feature),  # .to(torch.int8),
     }
-    tree['tree_edge_index'] = tree['tree_edge_index']#.to(torch.int8)
-    tree['atom2clique_index'] = tree['atom2clique_index']#.to(torch.int8)
-    tree['x_clique'] = tree['x_clique']#.to(torch.int8)
+    tree["tree_edge_index"] = tree["tree_edge_index"]  # .to(torch.int8)
+    tree["atom2clique_index"] = tree["atom2clique_index"]  # .to(torch.int8)
+    tree["x_clique"] = tree["x_clique"]  # .to(torch.int8)
 
     out_dict.update(tree)
-    
-    return out_dict 
+
+    return out_dict
+
+
 ####
 
-def ligand_init(smiles_list):
+
+def ligand_init(smiles_list: list[str]) -> dict[str, dict]:
     ligand_dict = {}
     for smiles in tqdm(smiles_list):
         ligand_dict[smiles] = smiles2graph(smiles)

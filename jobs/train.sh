@@ -25,8 +25,11 @@ SUBMIT_DIR="$(pwd)"     # because -cwd is set by LSF to the submission dir (or %
 echo "Submit dir: ${SUBMIT_DIR}"
 
 # ---- Logging (mirror to ./logs) ----
+LOG_LEVEL="INFO"
+
+mkdir -p ./logs
 ts="$(date +"%Y%m%d_%H%M%S")"
-log_file="./logs/${ts}_ML_gene_benchmark_prediction_analysis.log"
+LOG_FILE="./logs/${ts}_train.log"
 
 echo "------------------------------------------------------------"
 echo "JOB START: $(date)"
@@ -49,7 +52,7 @@ fi
 source "${base_dir}/etc/profile.d/conda.sh"
 
 # ---- Paths / env ----
-ENV_PREFIX="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/dti"
+ENV_PREFIX="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic"
 PIP_CACHE_DIR="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.pip_cache"
 CONDA_PKGS_DIRS="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/pkgs"
 mkdir -p "${PIP_CACHE_DIR}" "${CONDA_PKGS_DIRS}"
@@ -63,17 +66,19 @@ PYTHON="${ENV_PREFIX}/bin/python"
 [[ -x "${PYTHON}" ]] || PYTHON="python"
 
 # ---- Project paths ----
-LOG_LEVEL="INFO"
-DATA_FN="output/metrics/20251031_all_binding_db_genes.parquet"
-OUTPUT_DIR="output/metrics"; mkdir -p "${OUTPUT_DIR}"
-PREFIX="All_BindingDB_prediction_analysis"
-MAIN="src/ML_gene_prediction_analysis.py"
+RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
+mkdir -p "${RESULT_PATH}"
+MODEL_PATH="${RESULT_PATH}/save_model"
+mkdir -p "${MODEL_PATH}"
+INTERPRET_PATH="${RESULT_PATH}/interpretation_result"
+REGRESSION_TASK=True
+CLASSIFICATION_TASK=False
+MCLASSIFICATION_TASK=0
+
+DATAFOLDER="./dataset/pdb2020"
+MAIN="src/train.py"
 
 [[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN} (PWD=$(pwd))"; exit 2; }
-
-TOP_K=0
-MIN_N=0
-N=0
 
 echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"

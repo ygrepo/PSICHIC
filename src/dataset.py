@@ -5,15 +5,19 @@ from torch_geometric.data import Dataset
 import torch
 import pandas as pd
 from torch_geometric.data import Data
+from torch_geometric.data import Dataset
+from typing import Any
 import pickle
-import torch.utils.data
-from copy import deepcopy
-import numpy as np
 
 
 class ProteinMoleculeDataset(Dataset):
     def __init__(
-        self, sequence_data, mol_obj, prot_obj, device="cpu", cache_transform=True
+        self,
+        sequence_data: pd.DataFrame,
+        mol_obj: dict[str, dict],
+        prot_obj: dict[str, dict],
+        device="cpu",
+        cache_transform=True,
     ):
         super(ProteinMoleculeDataset, self).__init__()
 
@@ -76,7 +80,7 @@ class ProteinMoleculeDataset(Dataset):
     def __len__(self):
         return len(self.pairs)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> MultiGraphData:
         # Extract data
         mol_key = self.pairs.loc[idx, "Ligand"]
         prot_key = self.pairs.loc[idx, "Protein"]
@@ -177,7 +181,7 @@ class ProteinMoleculeDataset(Dataset):
         return out
 
 
-def maybe_num_nodes(index, num_nodes=None):
+def maybe_num_nodes(index, num_nodes: int | None = None) -> int:
     # NOTE(WMF): I find out a problem here,
     # index.max().item() -> int
     # num_nodes -> tensor
@@ -186,7 +190,9 @@ def maybe_num_nodes(index, num_nodes=None):
     return index.max().item() + 1 if num_nodes is None else int(num_nodes)
 
 
-def get_self_loop_attr(edge_index, edge_attr, num_nodes):
+def get_self_loop_attr(
+    edge_index: torch.Tensor, edge_attr: torch.Tensor, num_nodes: int | None = None
+) -> torch.Tensor:
     r"""Returns the edge features or weights of self-loops
     :math:`(i, i)` of every node :math:`i \in \mathcal{V}` in the
     graph given by :attr:`edge_index`. Edge features of missing self-loops not
@@ -233,7 +239,7 @@ def get_self_loop_attr(edge_index, edge_attr, num_nodes):
 
 
 class MultiGraphData(Data):
-    def __inc__(self, key, item, *args):
+    def __inc__(self, key: str, item: Any, *args):
         if key == "mol_edge_index":
             return self.mol_x.size(0)
         elif key == "clique_edge_index":

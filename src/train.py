@@ -6,25 +6,30 @@ import os
 import random
 import argparse
 import ast
+from pathlib import Path
 import sys
+from torch_geometric.loader import DataLoader
 
-from src.utils import setup_logging, get_logger
+from src.utils import (
+    setup_logging,
+    get_logger,
+    compute_pna_degrees,
+    CustomWeightedRandomSampler,
+)
 
 logger = get_logger(__name__)
 
 # Utils
-from utils.utils import (
-    DataLoader,
-    compute_pna_degrees,
-    virtual_screening,
-    CustomWeightedRandomSampler,
-)
-from utils.dataset import *  # data
+from utils.utils import virtual_screening
+
+
+from src.dataset import ProteinMoleculeDataset
 from utils.trainer import Trainer
 from utils.metrics import *
 
 # Preprocessing
-from utils import protein_init, ligand_init
+from src.protein_init import protein_init
+from src.ligand_init import ligand_init
 
 # Model
 from models.net import net
@@ -61,17 +66,29 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device", type=str, default="cuda:0", help='e.g., "cuda:0" or "cpu"'
     )
-    parser.add_argument("--config_path", type=str, default="config.json")
+    parser.add_argument("--config_path", type=Path, default="config/config.json")
 
     ### Data and Pre-processing
     parser.add_argument(
-        "--datafolder", type=str, default="./dataset/pdb2020", help="Protein data path"
+        "--datafolder", type=Path, default="./dataset/pdb2020", help="Protein data path"
     )
     parser.add_argument(
         "--result_path",
-        type=str,
-        default="./result/PDB2020_BENCHMARK/",
+        type=Path,
+        default="",
         help="Path to save results",
+    )
+    parser.add_argument(
+        "--model_path",
+        type=Path,
+        default="",
+        help="Path to save model",
+    )
+    parser.add_argument(
+        "--interpret_path",
+        type=Path,
+        default="",
+        help="Path to save interpretation results",
     )
     parser.add_argument(
         "--save_interpret", type=bool, default=True, help="Save interpretation results"
@@ -79,14 +96,21 @@ def parse_args() -> argparse.Namespace:
 
     ### Task Type
     parser.add_argument(
-        "--regression_task", type=bool, help="True if regression else False"
+        "--regression_task",
+        type=bool,
+        default=True,
+        help="True if regression else False",
     )
     parser.add_argument(
-        "--classification_task", type=bool, help="True if classification else False"
+        "--classification_task",
+        type=bool,
+        default=False,
+        help="True if classification else False",
     )
     parser.add_argument(
         "--mclassification_task",
         type=int,
+        default=0,
         help="Number of multiclassification, 0 if no multiclass task",
     )
 
@@ -123,7 +147,7 @@ def parse_args() -> argparse.Namespace:
     ### Finetuning / Loading
     parser.add_argument(
         "--trained_model_path",
-        type=str,
+        type=Path,
         default="",
         help="Path to a pretrained model directory",
     )
@@ -136,6 +160,14 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--nb_mode", type=bool, default=False)
 
+    parser.add_argument("--log_fn", type=str, default="train.log")
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level",
+    )
     args = parser.parse_args()
 
     if args.epochs is not None and args.total_iters is not None:
@@ -150,63 +182,62 @@ def parse_args() -> argparse.Namespace:
 # --- Setup Functions ---
 
 
-def load_and_merge_config(args: argparse.Namespace) -> dict:
+def load_and_merge_config(
+    trained_model_path: Path,
+    config_path: Path,
+    lrate: float,
+    eps: float,
+    betas: tuple,
+    regression_task: bool,
+    classification_task: bool,
+    mclassification_task: int,
+) -> dict:
     """Loads the base JSON config and overwrites it with args."""
 
     # Logic fix: If finetuning, load config from model dir. Else, load from config_path.
-    if args.trained_model_path:
-        logger.info(f"Loading config from: {args.trained_model_path}")
-        config_file = os.path.join(args.trained_model_path, "config.json")
+    if trained_model_path.exists():
+        logger.info(f"Loading config from: {trained_model_path}")
+        config_file = trained_model_path / "config.json"
     else:
-        logger.info(f"Loading config from: {args.config_path}")
-        config_file = args.config_path
+        logger.info(f"Loading config from: {config_path}")
+        config_file = config_path
 
     logger.info(f"Loading configuration from: {config_file}")
     with open(config_file, "r") as f:
         config = json.load(f)
 
     # Overwrite config with command-line arguments
-    config["optimizer"]["lrate"] = args.lrate
-    config["optimizer"]["eps"] = args.eps
-    config["optimizer"]["betas"] = args.betas
-    config["tasks"]["regression_task"] = args.regression_task
-    config["tasks"]["classification_task"] = args.classification_task
-    config["tasks"]["mclassification_task"] = args.mclassification_task
+    config["optimizer"]["lrate"] = lrate
+    config["optimizer"]["eps"] = eps
+    config["optimizer"]["betas"] = betas
+    config["tasks"]["regression_task"] = regression_task
+    config["tasks"]["classification_task"] = classification_task
+    config["tasks"]["mclassification_task"] = mclassification_task
 
     return config
 
 
-def setup_environment(args: argparse.Namespace):
+def setup_environment(
+    seed: int,
+    model_path: Path,
+    interpret_path: Path,
+    device: str,
+) -> tuple[torch.device, Path, Path]:
     """Sets random seeds, creates directories, and sets device."""
 
     # Set random seeds
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
-    random.seed(args.seed)
-    os.environ["PYTHONHASHSEED"] = str(args.seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
 
     # Set device
-    device = torch.device(args.device)
+    device = torch.device(device)
 
-    # Create result paths
-    model_path = os.path.join(args.result_path, f"save_model_seed{args.seed}")
-    interpret_path = os.path.join(
-        args.result_path, f"interpretation_result_seed{args.seed}"
-    )
-
-    os.makedirs(args.result_path, exist_ok=True)
-    os.makedirs(model_path, exist_ok=True)
-    os.makedirs(interpret_path, exist_ok=True)
-
-    # Save args
-    with open(os.path.join(args.result_path, "model_params.txt"), "w") as f:
-        f.write(str(args))
-
-    logger.info(f"Set seed to {args.seed}")
+    logger.info(f"Set seed to {seed}")
     logger.info(f"Using device: {device}")
-    logger.info(f"Results will be saved to: {args.result_path}")
 
     return device, model_path, interpret_path
 
@@ -214,20 +245,25 @@ def setup_environment(args: argparse.Namespace):
 # --- Data Loading Functions ---
 
 
-def load_dataframes(datafolder):
+def load_dataframes(
+    datafolder: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads the train, validation, and test dataframes."""
-    train_df = pd.read_csv(os.path.join(datafolder, "train.csv"))
-    test_df = pd.read_csv(os.path.join(datafolder, "test.csv"))
+    train_df = pd.read_csv(datafolder / "train.csv")
+    test_df = pd.read_csv(datafolder / "test.csv")
 
-    valid_path = os.path.join(datafolder, "valid.csv")
-    valid_df = None
-    if os.path.exists(valid_path):
-        valid_df = pd.read_csv(valid_path)
+    valid_path = datafolder / "valid.csv"
+    valid_df = pd.read_csv(valid_path)
 
     return train_df, test_df, valid_df
 
 
-def load_or_init_graphs(datafolder, train_df, test_df, valid_df):
+def load_or_init_graphs(
+    datafolder: Path,
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    valid_df: pd.DataFrame,
+) -> tuple[dict, dict]:
     """Loads pre-computed graph data or initializes it if not found."""
 
     # Get unique proteins and ligands
@@ -255,8 +291,8 @@ def load_or_init_graphs(datafolder, train_df, test_df, valid_df):
         )
 
     # Load or initialize protein graphs
-    protein_path = os.path.join(datafolder, "protein.pt")
-    if os.path.exists(protein_path):
+    protein_path = datafolder / "protein.pt"
+    if protein_path.exists():
         logger.info("Loading Protein Graph data...")
         protein_dict = torch.load(protein_path)
     else:
@@ -265,8 +301,8 @@ def load_or_init_graphs(datafolder, train_df, test_df, valid_df):
         torch.save(protein_dict, protein_path)
 
     # Load or initialize ligand graphs
-    ligand_path = os.path.join(datafolder, "ligand.pt")
-    if os.path.exists(ligand_path):
+    ligand_path = datafolder / "ligand.pt"
+    if ligand_path.exists():
         logger.info("Loading Ligand Graph data...")
         ligand_dict = torch.load(ligand_path)
     else:
@@ -278,42 +314,51 @@ def load_or_init_graphs(datafolder, train_df, test_df, valid_df):
     return protein_dict, ligand_dict
 
 
-def prepare_dataloaders(args, protein_dict, ligand_dict, train_df, test_df, valid_df):
+def prepare_dataloaders(
+    sampling_col: str,
+    protein_dict: dict[str, dict],
+    ligand_dict: dict[str, dict],
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    valid_df: pd.DataFrame,
+    device: str,
+    batch_size: int,
+) -> tuple[DataLoader, DataLoader, DataLoader]:
     """Creates and returns train, validation, and test DataLoaders."""
 
     # Setup training sampler
     train_shuffle = True
     train_sampler = None
-    if args.sampling_col:
-        train_weights = torch.from_numpy(train_df[args.sampling_col].values)
+    if sampling_col:
+        train_weights = torch.from_numpy(train_df[sampling_col].values)
         train_sampler = CustomWeightedRandomSampler(
             train_weights, len(train_weights), replacement=True
         )
         train_shuffle = False
         logger.info(
-            f"Using CustomWeightedRandomSampler on column '{args.sampling_col}'. Shuffle is False."
+            f"Using CustomWeightedRandomSampler on column '{sampling_col}'. Shuffle is False."
         )
 
     # Create datasets
     train_dataset = ProteinMoleculeDataset(
-        train_df, ligand_dict, protein_dict, device=args.device
+        train_df, ligand_dict, protein_dict, device=device
     )
     test_dataset = ProteinMoleculeDataset(
-        test_df, ligand_dict, protein_dict, device=args.device
+        test_df, ligand_dict, protein_dict, device=device
     )
 
     # Create loaders
     follow_batch_keys = ["mol_x", "clique_x", "prot_node_aa"]
     train_loader = DataLoader(
         train_dataset,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         shuffle=train_shuffle,
         sampler=train_sampler,
         follow_batch=follow_batch_keys,
     )
     test_loader = DataLoader(
         test_dataset,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         shuffle=False,
         follow_batch=follow_batch_keys,
     )
@@ -321,11 +366,11 @@ def prepare_dataloaders(args, protein_dict, ligand_dict, train_df, test_df, vali
     valid_loader = None
     if valid_df is not None:
         valid_dataset = ProteinMoleculeDataset(
-            valid_df, ligand_dict, protein_dict, device=args.device
+            valid_df, ligand_dict, protein_dict, device=device
         )
         valid_loader = DataLoader(
             valid_dataset,
-            batch_size=args.batch_size,
+            batch_size=batch_size,
             shuffle=False,
             follow_batch=follow_batch_keys,
         )
@@ -336,13 +381,18 @@ def prepare_dataloaders(args, protein_dict, ligand_dict, train_df, test_df, vali
 # --- Model and Trainer Functions ---
 
 
-def get_pna_degrees(args, train_loader, model_path):
+def get_pna_degrees(
+    trained_model_path: Path,
+    datafolder: Path,
+    train_loader: DataLoader,
+    model_path: Path,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Loads or computes PNA degrees."""
 
-    if not args.trained_model_path:
+    if not trained_model_path.exists():
         # Compute degrees from scratch
-        degree_path = os.path.join(args.datafolder, "degree.pt")
-        if not os.path.exists(degree_path):
+        degree_path = datafolder / "degree.pt"
+        if not degree_path.exists():
             logger.info("Computing training data degrees for PNA...")
             mol_deg, clique_deg, prot_deg = compute_pna_degrees(train_loader)
             degree_dict = {
@@ -356,14 +406,14 @@ def get_pna_degrees(args, train_loader, model_path):
             degree_dict = torch.load(degree_path)
 
         # Save degrees to model result directory
-        torch.save(degree_dict, os.path.join(model_path, "degree.pt"))
+        torch.save(degree_dict, model_path / "degree.pt")
 
     else:
         # Load degrees from the trained model directory
         logger.info(
-            f"Loading PNA degrees from trained model path: {args.trained_model_path}"
+            f"Loading PNA degrees from trained model path: {trained_model_path}"
         )
-        degree_dict = torch.load(os.path.join(args.trained_model_path, "degree.pt"))
+        degree_dict = torch.load(trained_model_path / "degree.pt")
 
     return (
         degree_dict["ligand_deg"],
@@ -517,20 +567,63 @@ def main():
     try:
         setup_logging(args.log_fn, args.log_level)
 
-        config = load_and_merge_config(args)
-        device, model_path, interpret_path = setup_environment(args)
+        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.info(f"Data folder: {args.datafolder}")
+        logger.info(f"Result path: {args.result_path}")
+        logger.info(f"Config path: {args.config_path}")
+        logger.info(f"Trained model path: {args.trained_model_path}")
+        logger.info(f"Learning rate: {args.lrate}")
+        logger.info(f"Weight decay: {args.wdecay}")
+        logger.info(f"Batch size: {args.batch_size}")
+        logger.info(f"Total iters: {args.total_iters}")
+        logger.info(f"Epochs: {args.epochs}")
+        logger.info(f"Seed: {args.seed}")
+        logger.info(f"Regression task: {args.regression_task}")
+        logger.info(f"Classification task: {args.classification_task}")
+        logger.info(f"Multiclassification task: {args.mclassification_task}")
+        logger.info(f"Finetune modules: {args.finetune_modules}")
+        logger.info(f"Notebook mode: {args.nb_mode}")
+        logger.info(f"Device: {args.device}")
+
+        trained_model_path = args.trained_model_path.resolve()
+        config_path = args.config_path.resolve()
+        config = load_and_merge_config(
+            trained_model_path,
+            config_path,
+            args.lrate,
+            args.eps,
+            args.betas,
+            args.regression_task,
+            args.classification_task,
+            args.mclassification_task,
+        )
+        model_path = args.model_path.resolve()
+        interpret_path = args.interpret_path.resolve()
+        device, model_path, interpret_path = setup_environment(
+            args.seed, model_path, interpret_path, args.device
+        )
 
         # 2. Load Data
-        train_df, test_df, valid_df = load_dataframes(args.datafolder)
+        datafolder = args.datafolder.resolve()
+        train_df, test_df, valid_df = load_dataframes(datafolder)
         protein_dict, ligand_dict = load_or_init_graphs(
-            args.datafolder, train_df, test_df, valid_df
+            datafolder, train_df, test_df, valid_df
         )
         train_loader, valid_loader, test_loader = prepare_dataloaders(
-            args, protein_dict, ligand_dict, train_df, test_df, valid_df
+            args.sampling_col,
+            protein_dict,
+            ligand_dict,
+            train_df,
+            test_df,
+            valid_df,
+            args.device,
+            args.batch_size,
         )
 
         # 3. Initialize Model and Trainer
-        mol_deg, clique_deg, prot_deg = get_pna_degrees(args, train_loader, model_path)
+        mol_deg, clique_deg, prot_deg = get_pna_degrees(
+            trained_model_path, datafolder, train_loader, model_path
+        )
         model = initialize_model(config, mol_deg, prot_deg, device, args)
         engine = initialize_trainer(
             model, config, train_loader, args, device, model_path
