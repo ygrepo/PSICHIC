@@ -68,6 +68,7 @@ PYTHON="${ENV_PREFIX}/bin/python"
 [[ -x "${PYTHON}" ]] || PYTHON="python"
 
 # ---- Project paths ----
+CONFIG_PATH="config"
 RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
@@ -116,6 +117,7 @@ set +e
 "${PYTHON}" "${MAIN}" \
   --log_fn "${LOG_FILE}" \
   --log_level "${LOG_LEVEL}" \
+  --config_path "${CONFIG_PATH}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
   --interpret_path "${INTERPRET_PATH}" \

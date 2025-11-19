@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--device", type=str, default="cuda", help='e.g., "cuda" or "cpu"'
     )
-    parser.add_argument("--config_path", type=Path, default="config/config.json")
+    parser.add_argument("--config_path", type=Path, default="config")
 
     ### Data and Pre-processing
     parser.add_argument(
@@ -203,7 +203,7 @@ def load_and_merge_config(
         config_file = trained_model_path / "config.json"
     else:
         logger.info(f"Loading config from: {config_path}")
-        config_file = config_path
+        config_file = config_path / "config.json"
 
     logger.info(f"Loading configuration from: {config_file}")
     with open(config_file, "r") as f:
