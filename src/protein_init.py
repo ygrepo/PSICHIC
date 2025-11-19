@@ -29,6 +29,7 @@ def protein_init(seqs: list[str]) -> dict[str, dict]:
     model, alphabet = esm.pretrained.load_model_and_alphabet(model_location)
     model.eval()
     if torch.cuda.is_available():
+        logger.info("Using CUDA")
         model = model.cuda()
     batch_converter = alphabet.get_batch_converter()
 
@@ -369,7 +370,7 @@ def esm_extract(
 ) -> tuple[Tensor, Tensor, Tensor]:
     pro_id = "A"
     if len(seq) <= 700:
-        batch_tokens = batch_converter([(pro_id, seq)])
+        batch_labels, batch_strs, batch_tokens = batch_converter([(pro_id, seq)])
         batch_tokens = batch_tokens.to(
             next(model.parameters()).device, non_blocking=True
         )
@@ -423,7 +424,9 @@ def esm_extract(
 
             # prediction
             temp_seq = seq[start:end]
-            batch_tokens = batch_converter([(pro_id, temp_seq)])
+            batch_labels, batch_strs, batch_tokens = batch_converter(
+                [(pro_id, temp_seq)]
+            )
             batch_tokens = batch_tokens.to(
                 next(model.parameters()).device, non_blocking=True
             )
