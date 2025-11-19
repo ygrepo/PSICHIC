@@ -1,15 +1,17 @@
 #!/bin/bash
-# ML_gene_prediction_analysis.sh —
+# train.sh
 
 # ------- LSF resources ------
-#BSUB -J ML_gene_prediction_analysis
+#BSUB -J train
 #BSUB -P acc_DiseaseGeneCell
-#BSUB -q premium
+#BSUB -q gpu                  # queue
+#BSUB -gpu "num=1"
+#BSUB -R h100nvl
 #BSUB -n 1
 #BSUB -R "rusage[mem=128G]"
 #BSUB -W 6:00
-#BSUB -o logs/ML_gene_prediction_analysis.%J.out
-#BSUB -e logs/ML_gene_prediction_analysis.%J.err
+#BSUB -o logs/train.%J.out
+#BSUB -e logs/train.%J.err
 
 
 # --------------------------------
@@ -68,38 +70,69 @@ PYTHON="${ENV_PREFIX}/bin/python"
 # ---- Project paths ----
 RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
-MODEL_PATH="${RESULT_PATH}/save_model"
+MODEL_PATH="${RESULT_PATH}/save_models"
 mkdir -p "${MODEL_PATH}"
 INTERPRET_PATH="${RESULT_PATH}/interpretation_result"
 REGRESSION_TASK=True
 CLASSIFICATION_TASK=False
 MCLASSIFICATION_TASK=0
+EPOCHS=30
+EVALUATE_EPOCH=1
+TOTAL_ITERS=30000
+EVALUATE_STEP=500
+LRATE=1e-4
+EPS=1e-8
+BETAS="(0.9,0.999)"
+BATCH_SIZE=16
 
 DATAFOLDER="./dataset/pdb2020"
+TRAINED_MODEL_PATH=""
+
 MAIN="src/train.py"
 
 [[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN} (PWD=$(pwd))"; exit 2; }
 
 echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"
-echo "Data file  : ${DATA_FN}"
-echo "Output dir : ${OUTPUT_DIR}"
-echo "Prefix     : ${PREFIX}"
-echo "Top K      : ${TOP_K}"
-echo "Min N      : ${MIN_N}"
-echo "N rows     : ${N}"
+echo "Result path: ${RESULT_PATH}"
+echo "Model path: ${MODEL_PATH}"
+echo "Interpret path: ${INTERPRET_PATH}"
+echo "Regression task: ${REGRESSION_TASK}"
+echo "Classification task: ${CLASSIFICATION_TASK}"
+echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
+echo "EPOCHS: ${EPOCHS}"
+echo "Evaluate epoch: ${EVALUATE_EPOCH}"
+echo "Total iters: ${TOTAL_ITERS}"
+echo "Evaluate step: ${EVALUATE_STEP}"
+echo "LRATE: ${LRATE}"
+echo "EPS: ${EPS}"
+echo "BETAS: ${BETAS}"
+echo "Batch size: ${BATCH_SIZE}"
+echo "Datafolder: ${DATAFOLDER}"
+echo "Trained model path: ${TRAINED_MODEL_PATH}"
 echo "------------------------------------------------------------"
 
 set +e
 "${PYTHON}" "${MAIN}" \
   --log_fn "${log_file}" \
   --log_level "${LOG_LEVEL}" \
-  --data_fn "${DATA_FN}" \
-  --top_k "${TOP_K}" \
-  --output_dir "${OUTPUT_DIR}" \
-  --prefix "${PREFIX}" \
-  --N "${N}" \
-  --min_n "${MIN_N}"
+  --result_path "${RESULT_PATH}" \
+  --model_path "${MODEL_PATH}" \
+  --interpret_path "${INTERPRET_PATH}" \
+  --save_interpret "${SAVE_INTERPRET}" \
+  --regression_task "${REGRESSION_TASK}" \
+  --classification_task "${CLASSIFICATION_TASK}" \
+  --mclassification_task "${MCLASSIFICATION_TASK}" \
+  --epochs "${EPOCHS}" \
+  --evaluate_epoch "${EVALUATE_EPOCH}" \
+  --total_iters "${TOTAL_ITERS}" \
+  --evaluate_step "${EVALUATE_STEP}" \
+  --lrate "${LRATE}" \
+  --eps "${EPS}" \
+  --betas "${BETAS}" \
+  --batch_size "${BATCH_SIZE}" \
+  --datafolder "${DATAFOLDER}" \
+  --trained_model_path "${TRAINED_MODEL_PATH}" \
 exit_code=$?
 set -e
 

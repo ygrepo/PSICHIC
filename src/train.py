@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
     ### Seed and device
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument(
-        "--device", type=str, default="cuda:0", help='e.g., "cuda:0" or "cpu"'
+        "--device", type=str, default="cuda", help='e.g., "cuda" or "cpu"'
     )
     parser.add_argument("--config_path", type=Path, default="config/config.json")
 
@@ -93,7 +93,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--save_interpret", type=bool, default=True, help="Save interpretation results"
     )
-
     ### Task Type
     parser.add_argument(
         "--regression_task",
@@ -113,7 +112,6 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="Number of multiclassification, 0 if no multiclass task",
     )
-
     ### Training Schedule
     parser.add_argument(
         "--epochs", type=int, default=30, help="Number of training epochs"
@@ -130,14 +128,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--evaluate_step", type=int, default=500, help="Evaluate every N iterations"
     )
-
     ### Optimizer Params
     parser.add_argument("--lrate", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--eps", type=float, default=1e-8, help="AdamW epsilon")
     parser.add_argument(
         "--betas", type=tuple_type, default="(0.9,0.999)", help="AdamW betas"
     )
-
     ### Batching and Sampling
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument(
@@ -422,7 +418,13 @@ def get_pna_degrees(
     )
 
 
-def initialize_model(config, mol_deg, prot_deg, device, args):
+def initialize_model(
+    config: dict,
+    mol_deg: torch.Tensor,
+    prot_deg: torch.Tensor,
+    device: str,
+    trained_model_path: Path,
+) -> net:
     """Initializes the network model and loads pretrained weights if specified."""
 
     model = net(
@@ -451,8 +453,8 @@ def initialize_model(config, mol_deg, prot_deg, device, args):
 
     model.reset_parameters()
 
-    if args.trained_model_path:
-        param_dict = os.path.join(args.trained_model_path, "model.pt")
+    if trained_model_path.exists():
+        param_dict = trained_model_path / "model.pt"
         model.load_state_dict(torch.load(param_dict, map_location=device), strict=False)
         logger.info(f"Pretrained model loaded from: {param_dict}")
 

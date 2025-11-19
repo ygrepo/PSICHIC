@@ -459,7 +459,7 @@ def virtual_screening(
     result_path,
     save_interpret=True,
     ligand_dict=None,
-    device="cpu",
+    device: str = "cpu",
     save_cluster=False,
 ):
     if "ID" in screen_df.columns:
