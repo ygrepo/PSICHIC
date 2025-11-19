@@ -2,6 +2,7 @@ from torch_geometric.data import Dataset
 
 # from torch.utils.data import Dataset
 import torch
+from torch import Tensor
 import pandas as pd
 from torch_geometric.data import Data
 from torch_geometric.data import Dataset
@@ -210,8 +211,8 @@ def maybe_num_nodes(index, num_nodes: int | None = None) -> int:
 
 
 def get_self_loop_attr(
-    edge_index: torch.Tensor, edge_attr: torch.Tensor, num_nodes: int | None = None
-) -> torch.Tensor:
+    edge_index: Tensor, edge_attr: Tensor, num_nodes: int | None = None
+) -> Tensor:
     r"""Returns the edge features or weights of self-loops
     :math:`(i, i)` of every node :math:`i \in \mathcal{V}` in the
     graph given by :attr:`edge_index`. Edge features of missing self-loops not

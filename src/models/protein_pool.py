@@ -211,11 +211,6 @@ def dense_dmon_pool(x, adj, s, mask=None):
     return s_out, out, out_adj, spectral_loss, ortho_loss, cluster_loss
 
 
-import torch
-
-EPS = 1e-15
-
-
 def simplify_pool(x, adj, s, mask=None, normalize=True):
     r"""The Just Balance pooling operator from the `"Simplifying Clustering with
     Graph Neural Networks" <https://arxiv.org/abs/2207.08779>`_ paper

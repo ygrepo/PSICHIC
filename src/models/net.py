@@ -4,6 +4,7 @@ import math
 
 import torch
 import torch.nn.functional as F
+from torch import Tensor
 from torch.nn import Embedding, Linear
 from torch_geometric.nn import global_add_pool
 from torch_geometric.utils import degree, to_scipy_sparse_matrix, segregate_self_loops

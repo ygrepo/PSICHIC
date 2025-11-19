@@ -6,6 +6,7 @@ from Bio.PDB import PDBParser
 from tqdm import tqdm
 
 import torch
+from torch import Tensor
 import esm
 from torch_geometric.utils import (
     add_self_loops,
@@ -318,7 +319,7 @@ def seq_feature(pro_seq: str) -> np.ndarray:
 
 def contact_map(
     contact_map_proba: np.ndarray, contact_threshold: float = 0.5
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[Tensor, Tensor]:
     num_residues = contact_map_proba.shape[0]
     prot_contact_adj = (contact_map_proba >= contact_threshold).long()
     edge_index = prot_contact_adj.nonzero(as_tuple=False).t().contiguous()
@@ -365,7 +366,7 @@ def esm_extract(
     layer: int = 36,
     approach: str = "mean",
     dim: int = 2560,
-) -> tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+) -> tuple[Tensor, Tensor, np.ndarray]:
     pro_id = "A"
     if len(seq) <= 700:
         batch_tokens = batch_converter([pro_id, seq])
