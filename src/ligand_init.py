@@ -52,13 +52,14 @@ def one_of_k_encoding_unk(x: int, allowable_set: list) -> list:
 
 
 def atom_features(atom: Chem.rdchem.Atom) -> np.ndarray:
-    # encoding = one_of_k_encoding_unk(atom.GetSymbol(),['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na','Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb','Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H','Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr','Cr', 'Pt', 'Hg', 'Pb', 'Unknown'])
     encoding = one_of_k_encoding(
         atom.GetDegree(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     ) + one_of_k_encoding_unk(atom.GetTotalNumHs(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
     encoding += one_of_k_encoding_unk(
         atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     )
+
     encoding += one_of_k_encoding_unk(
         atom.GetHybridization(),
         [
@@ -70,20 +71,54 @@ def atom_features(atom: Chem.rdchem.Atom) -> np.ndarray:
             "other",
         ],
     )
-    # encoding += one_of_k_encoding_unk(atom.GetFormalCharge(), [0,-1,1,2,-100])
-    # encoding += one_of_k_encoding_unk(atom.GetNumRadicalElectrons(), [0,1,2,-100])
-    encoding += [atom.GetIsAromatic()]
-    # encoding += [atom.IsInRing()]
 
-    try:
-        encoding += one_of_k_encoding_unk(atom.GetProp("_CIPCode"), ["R", "S"]) + [
-            atom.HasProp("_ChiralityPossible")
-        ]
-    except Exception as e:
-        logger.warning(f"Chirality error: {e}")
-        encoding += [0, 0] + [atom.HasProp("_ChiralityPossible")]
+    encoding += [atom.GetIsAromatic()]
+
+    # Chirality: only use CIP code if present
+    if atom.HasProp("_CIPCode"):
+        cip = atom.GetProp("_CIPCode")
+        encoding += one_of_k_encoding_unk(cip, ["R", "S"])
+    else:
+        encoding += [0, 0]
+
+    encoding += [atom.HasProp("_ChiralityPossible")]
 
     return np.array(encoding)
+
+
+# def atom_features(atom: Chem.rdchem.Atom) -> np.ndarray:
+#     # encoding = one_of_k_encoding_unk(atom.GetSymbol(),['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na','Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K', 'Tl', 'Yb','Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H','Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr','Cr', 'Pt', 'Hg', 'Pb', 'Unknown'])
+#     encoding = one_of_k_encoding(
+#         atom.GetDegree(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+#     ) + one_of_k_encoding_unk(atom.GetTotalNumHs(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+#     encoding += one_of_k_encoding_unk(
+#         atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+#     )
+#     encoding += one_of_k_encoding_unk(
+#         atom.GetHybridization(),
+#         [
+#             Chem.rdchem.HybridizationType.SP,
+#             Chem.rdchem.HybridizationType.SP2,
+#             Chem.rdchem.HybridizationType.SP3,
+#             Chem.rdchem.HybridizationType.SP3D,
+#             Chem.rdchem.HybridizationType.SP3D2,
+#             "other",
+#         ],
+#     )
+#     # encoding += one_of_k_encoding_unk(atom.GetFormalCharge(), [0,-1,1,2,-100])
+#     # encoding += one_of_k_encoding_unk(atom.GetNumRadicalElectrons(), [0,1,2,-100])
+#     encoding += [atom.GetIsAromatic()]
+#     # encoding += [atom.IsInRing()]
+
+#     try:
+#         encoding += one_of_k_encoding_unk(atom.GetProp("_CIPCode"), ["R", "S"]) + [
+#             atom.HasProp("_ChiralityPossible")
+#         ]
+#     except Exception as e:
+#         logger.warning(f"Chirality error: {e}")
+#         encoding += [0, 0] + [atom.HasProp("_ChiralityPossible")]
+
+#     return np.array(encoding)
 
 
 class MoleculeGraphDataset:
@@ -333,8 +368,7 @@ class MoleculeGraphDataset:
     def mol_full_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         """Return per-atom feature matrix of shape (num_atoms, feat_dim)."""
 
-        # Ensure chirality info is assigned
-        rdmolops.AssignAtomChiralTags(mol, force=True)
+        # This assigns CIP R/S tags and stereochemistry info from the graph/SMILES.
         Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
 
         atom_feats = [atom_features(atom) for atom in mol.GetAtoms()]
