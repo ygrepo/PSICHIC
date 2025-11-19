@@ -10,6 +10,10 @@ from pathlib import Path
 import sys
 from torch_geometric.loader import DataLoader
 
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
 from src.utils import (
     setup_logging,
     get_logger,
