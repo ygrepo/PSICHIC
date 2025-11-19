@@ -331,10 +331,12 @@ class MoleculeGraphDataset:
     def mol_full_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_ids = []
         atom_feats = []
+        Chem.AssignAtomChiralTags(mol, force=True)
+        Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
         for atom in mol.GetAtoms():
             atom_ids.append(atom.GetIdx())
-            feature = atom_features(atom)
-            atom_feats.append(feature)
+            features = atom_features(atom)
+            atom_feats.append(features)
         feature = np.array(list(zip(*sorted(zip(atom_ids, atom_feats))))[-1])
 
         return feature
@@ -417,7 +419,7 @@ def tree_decomposition(
     # import rdkit.Chem as Chem
 
     # Cliques = rings and bonds.
-    cliques = [list(x) for x in ChemicalFeatures.GetSymmSSSR(mol)]
+    cliques = [list(x) for x in Chem.GetSymmSSSR(mol)]
     xs = [0] * len(cliques)
     for bond in mol.GetBonds():
         if not bond.IsInRing():

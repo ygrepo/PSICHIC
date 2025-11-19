@@ -33,6 +33,65 @@ logger = get_logger(__name__)
 def compute_pna_degrees(
     train_loader: DataLoader,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Compute in-degree histograms for PNAConv (Principal Neighborhood Aggregation).
+
+    PNA layers require a global histogram of node degrees for each graph type.
+    These histograms are used to:
+        • scale aggregators based on node degree distribution
+        • normalize messages differently for sparse vs dense neighborhoods
+        • compute the PNA degree scalers (identity, amplification, attenuation, etc.)
+
+    This function computes degree statistics for three graph domains:
+        1. mol_deg    → ligand molecular graph (atom-level nodes)
+        2. clique_deg → ligand clique/fragment graph (supernode-level)
+        3. prot_deg   → protein residue graph (amino acid nodes)
+
+    The computation is done in two passes:
+
+    Pass 1 — Determine maximum observed degree
+    -------------------------------------------
+    We iterate over the training set and compute:
+        mol_max_degree
+        clique_max_degree
+        prot_max_degree
+    These values define how large the degree histogram needs to be.
+
+    Pass 2 — Build the degree histogram
+    ------------------------------------
+    For each batch, we:
+        • compute per-node in-degrees using torch_geometric.utils.degree
+        • update the histogram via torch.bincount
+    The result is a tensor where index `k` stores the number of nodes
+    with degree `k` across the entire training dataset.
+
+    Error Handling
+    --------------
+    A try/except block is included for clique graphs because
+    some datasets may have missing cliques or malformed edges.
+    If this happens, we print diagnostic information so the user
+    can inspect the problematic sample.
+
+    Returns
+    -------
+    mol_deg : torch.Tensor (shape = [max_degree_mol + 1])
+        Histogram of node degrees for ligand molecular graphs.
+
+    clique_deg : torch.Tensor (shape = [max_degree_clique + 1])
+        Histogram of node degrees for clique/fragment graphs.
+
+    prot_deg : torch.Tensor (shape = [max_degree_protein + 1])
+        Histogram of node degrees for protein residue graphs.
+
+    Notes
+    -----
+    • These degree tensors must be passed to PNAConv to properly initialize
+      its degree-scalers.
+    • Degree histograms are aggregated over the entire training dataset to avoid
+      batch-specific bias.
+    • Only in-degree is used (PNAConv convention), as PyG message passing is
+      generally defined on incoming messages.
+    """
     mol_max_degree = -1
     clique_max_degree = -1
     prot_max_degree = -1

@@ -443,6 +443,7 @@ def prepare_dataloaders(
             follow_batch=follow_batch_keys,
         )
 
+    logger.info("DataLoaders created.")
     return train_loader, valid_loader, test_loader
 
 
@@ -455,8 +456,44 @@ def get_pna_degrees(
     train_loader: DataLoader,
     model_path: Path,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Loads or computes PNA degrees."""
+    """
+    Compute or load PNA (Principal Neighborhood Aggregation) degree statistics.
 
+    PNA (Principal Neighborhood Aggregation) requires pre-computed node degrees
+    for each graph domain (ligand graph, clique graph, protein graph). These
+    degree histograms are used by PNAConv / PNA layers to apply:
+        • degree-scaled aggregation
+        • degree-based normalization
+        • aggregator corrections based on graph sparsity/density
+
+    This function provides the following logic:
+
+    1. If `trained_model_path` does NOT exist:
+         → We are running a new training job.
+         → Attempt to load cached degree statistics from `datafolder/degree.pt`.
+         → If no cached file exists, compute degrees from the training set
+           (via `compute_pna_degrees(train_loader)`), then save them.
+         → Copy the resulting degree file into the new model directory
+           (`model_path/degree.pt`) so future runs can reuse them.
+
+    2. If `trained_model_path` DOES exist:
+         → Load existing degree statistics from the previously trained model.
+         → This allows evaluation or fine-tuning without recomputing degrees.
+
+    Returns
+    -------
+    tuple(torch.Tensor, torch.Tensor, torch.Tensor)
+        A tuple containing:
+            ligand_deg : degree histogram for ligand molecular graphs
+            clique_deg : degree histogram for clique/fragment graphs
+            protein_deg: degree histogram for protein residue graphs
+
+    Notes
+    -----
+    • This function ensures degree statistics are computed exactly once per dataset.
+    • The degrees are saved to disk so repeated training is deterministic and fast.
+    • All downstream PNAConv layers rely on these tensors for correct scaling.
+    """
     if not trained_model_path.exists():
         # Compute degrees from scratch
         degree_path = datafolder / "degree.pt"
