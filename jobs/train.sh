@@ -132,7 +132,7 @@ set +e
   --betas "${BETAS}" \
   --batch_size "${BATCH_SIZE}" \
   --datafolder "${DATAFOLDER}" \
-  --trained_model_path "${TRAINED_MODEL_PATH}" \
+  --trained_model_path "${TRAINED_MODEL_PATH}"
 exit_code=$?
 set -e
 
