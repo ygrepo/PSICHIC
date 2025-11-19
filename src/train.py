@@ -27,11 +27,11 @@ from src.model_utils import (
 logger = get_logger(__name__)
 
 # Utils
-from src.utils import virtual_screening
+from src.model_utils import virtual_screening
 
 
 from src.dataset import ProteinMoleculeDataset
-from utils.trainer import Trainer
+from src.trainer import Trainer
 from src.metrics import evaluate_reg, evaluate_cls, evaluate_mcls
 
 # Preprocessing
@@ -39,7 +39,7 @@ from src.protein_init import protein_init
 from src.ligand_init import ligand_init
 
 # Model
-from models.net import net
+from src.models.net import net
 
 # --- Argument Parsing Helpers ---
 
