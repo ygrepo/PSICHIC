@@ -156,7 +156,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--trained_model_path",
         type=Path,
-        default=".",
+        default=None,
         help="Path to a pretrained model directory",
     )
     parser.add_argument(
@@ -191,7 +191,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_and_merge_config(
-    trained_model_path: Path,
+    trained_model_path: Path | None,
     config_path: Path,
     lrate: float,
     eps: float,
@@ -201,18 +201,8 @@ def load_and_merge_config(
     mclassification_task: int,
 ) -> dict:
     """Loads the base JSON config and overwrites it with args."""
-
-    # Check if trained_model_path is a valid model directory (not just current dir)
-    # A valid model directory should have a config.json file
-    trained_config_file = trained_model_path / "config.json"
-
-    # Only use trained model config if:
-    # 1. The path is not empty/current directory
-    # 2. The config.json actually exists in that directory
-    if (
-        str(trained_model_path) not in ["", ".", os.getcwd()]
-        and trained_config_file.exists()
-    ):
+    if trained_model_path is not None and trained_model_path.exists():
+        trained_config_file = trained_model_path / "config.json"
         logger.info(f"Loading config from trained_model_path: {trained_model_path}")
         config_file = trained_config_file
     else:
@@ -416,7 +406,7 @@ def prepare_dataloaders(
 
 
 def get_pna_degrees(
-    trained_model_path: Path,
+    trained_model_path: Path | None,
     datafolder: Path,
     train_loader: DataLoader,
     model_path: Path,
@@ -459,7 +449,7 @@ def get_pna_degrees(
     • The degrees are saved to disk so repeated training is deterministic and fast.
     • All downstream PNAConv layers rely on these tensors for correct scaling.
     """
-    if not trained_model_path.exists() or str(trained_model_path) == ".":
+    if trained_model_path is None or not trained_model_path.exists():
         # Compute degrees from scratch
         degree_path = datafolder / "degree.pt"
         if not degree_path.exists():
@@ -539,8 +529,15 @@ def initialize_model(
 
 
 def initialize_trainer(
-    model, config, train_loader, total_iters, epochs, args, device, model_path
-):
+    model: net,
+    config: dict,
+    train_loader: DataLoader,
+    total_iters: int,
+    epochs: int,
+    args: argparse.Namespace,
+    device: str,
+    model_path: Path,
+) -> Trainer:
     """Initializes the training engine."""
 
     # Determine evaluation metric
@@ -580,7 +577,7 @@ def initialize_trainer(
     )
 
     # Save the config to the model directory
-    with open(os.path.join(model_path, "config.json"), "w") as f:
+    with open(model_path / "config.json", "w") as f:
         json.dump(config, f, indent=4)
 
     return engine
@@ -670,7 +667,7 @@ def main():
         logger.info(f"Notebook mode: {args.nb_mode}")
         logger.info(f"Device: {args.device}")
 
-        trained_model_path = args.trained_model_path.resolve()
+        trained_model_path = args.trained_model_path
         config_path = args.config_path.resolve()
         config = load_and_merge_config(
             trained_model_path,
@@ -709,7 +706,7 @@ def main():
         mol_deg, clique_deg, prot_deg = get_pna_degrees(
             trained_model_path, datafolder, train_loader, model_path
         )
-        model = initialize_model(config, mol_deg, prot_deg, device, args)
+        model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
         engine = initialize_trainer(
             model, config, train_loader, total_iters, epochs, args, device, model_path
         )

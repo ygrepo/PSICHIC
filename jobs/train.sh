@@ -93,7 +93,6 @@ BATCH_SIZE=16
 N=10
 
 DATAFOLDER="./dataset/pdb2020"
-TRAINED_MODEL_PATH="."
 
 MAIN="src/train.py"
 
@@ -142,8 +141,7 @@ set +e
   --eps "${EPS}" \
   --betas "${BETAS}" \
   --batch_size "${BATCH_SIZE}" \
-  --datafolder "${DATAFOLDER}" \
-  --trained_model_path "${TRAINED_MODEL_PATH}"
+  --datafolder "${DATAFOLDER}" 
 exit_code=$?
 set -e
 
