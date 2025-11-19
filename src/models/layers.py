@@ -1,11 +1,11 @@
 import math
+import sys
+from pathlib import Path
 from typing import Optional, Tuple
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.pna import PNAConv
-import torch
-
 from torch import Tensor
 from torch_geometric.nn import global_add_pool
 from torch_geometric.nn.conv import MessagePassing, GCNConv, SAGEConv, APPNP, SGConv
@@ -20,6 +20,10 @@ from torch_geometric.utils import (
 )
 import numpy as np
 import scipy.sparse as sp
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from src.models.pna import PNAConv
 
 
 class SGCluster(torch.nn.Module):

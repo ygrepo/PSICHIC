@@ -24,7 +24,7 @@ from src.utils import (
 logger = get_logger(__name__)
 
 # Utils
-from utils.utils import virtual_screening
+from src.utils import virtual_screening
 
 
 from src.dataset import ProteinMoleculeDataset

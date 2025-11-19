@@ -301,16 +301,16 @@ def store_ligand_score(ligand_smiles, atom_types, atom_scores, ligand_path):
 
 
 def store_result(
-    df,
-    attention_dict,
-    interaction_keys,
-    ligand_dict,
-    reg_pred=None,
-    cls_pred=None,
-    mcls_pred=None,
-    result_path="",
-    save_interpret=True,
-):
+    df: pd.DataFrame,
+    attention_dict: dict,
+    interaction_keys: list,
+    ligand_dict: dict,
+    result_path: Path,
+    reg_pred: list = None,
+    cls_pred: list = None,
+    mcls_pred: list = None,
+    save_interpret: bool = True,
+) -> pd.DataFrame:
     if save_interpret:
         unbatched_residue_score = unbatch(
             attention_dict["residue_final_score"],
@@ -318,13 +318,6 @@ def store_result(
         )
         unbatched_atom_score = unbatch(
             attention_dict["atom_final_score"], attention_dict["drug_atom_index"]
-        )
-        unbatched_residue_layer_score = unbatch(
-            attention_dict["residue_layer_scores"],
-            attention_dict["protein_residue_index"],
-        )
-        unbatched_clique_layer_score = unbatch(
-            attention_dict["clique_layer_scores"], attention_dict["drug_clique_index"]
         )
 
     for idx, key in enumerate(interaction_keys):
@@ -385,9 +378,9 @@ def store_result(
 
         if save_interpret:
             for pair_id in df[matching_row]["ID"]:
-                pair_path = os.path.join(result_path, pair_id)
-                if not os.path.exists(pair_path):
-                    os.makedirs(pair_path)
+                pair_path = result_path / pair_id
+                if not pair_path.exists():
+                    pair_path.mkdir(parents=True)
                 ## STORE Protein Interpretation
                 protein_interpret = pd.DataFrame(
                     {
@@ -458,23 +451,34 @@ def store_result(
 
 
 def virtual_screening(
-    screen_df,
-    model,
-    data_loader,
-    result_path,
-    save_interpret=True,
-    ligand_dict=None,
+    screen_df: pd.DataFrame | str,
+    model: net,
+    data_loader: DataLoader,
+    result_path: str,
+    save_interpret: bool = True,
+    ligand_dict: dict = None,
     device: str = "cpu",
-    save_cluster=False,
-):
-    if "ID" in screen_df.columns:
-        # Iterate through the DataFrame check any empty pairs
-        for i, row in screen_df.iterrows():
-            if pd.isna(row["ID"]):
-                screen_df.at[i, "ID"] = f"PAIR_{i}"
+    save_cluster: bool = False,
+) -> pd.DataFrame:
+    if isinstance(screen_df, pd.DataFrame):
+        if "ID" in screen_df.columns:
+            # Iterate through the DataFrame check any empty pairs
+            for i, row in screen_df.iterrows():
+                if pd.isna(row["ID"]):
+                    screen_df.at[i, "ID"] = f"PAIR_{i}"
+        else:
+            screen_df["ID"] = "PAIR_"
+            screen_df["ID"] += screen_df.index.astype(str)
     else:
-        screen_df["ID"] = "PAIR_"
-        screen_df["ID"] += screen_df.index.astype(str)
+        screen_df = pd.read_csv(screen_df)
+        if "ID" in screen_df.columns:
+            # Iterate through the DataFrame check any empty pairs
+            for i, row in screen_df.iterrows():
+                if pd.isna(row["ID"]):
+                    screen_df.at[i, "ID"] = f"PAIR_{i}"
+        else:
+            screen_df["ID"] = "PAIR_"
+            screen_df["ID"] += screen_df.index.astype(str)
     reg_preds = []
     cls_preds = []
     mcls_preds = []

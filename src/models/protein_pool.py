@@ -1,7 +1,21 @@
+import sys
+from pathlib import Path
+
+from typing import List, Optional, Tuple, Union
+
 import torch
+import torch.nn.functional as F
+from torch import Tensor
+
+from torch_geometric.nn.dense.mincut_pool import _rank3_trace
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+from src.models.layers import MLP
 
 EPS = 1e-15
-from models.layers import *
+
 
 def dense_mincut_pool(x, adj, s, mask=None, cluster_drop_node=None):
     r"""The MinCut pooling operator from the `"Spectral Clustering in Graph
@@ -75,10 +89,9 @@ def dense_mincut_pool(x, adj, s, mask=None, cluster_drop_node=None):
 
     # MinCut regularization.
     mincut_num = _rank3_trace(out_adj)
-    d_flat = torch.einsum('ijk->ij', adj)
+    d_flat = torch.einsum("ijk->ij", adj)
     d = _rank3_diag(d_flat)
-    mincut_den = _rank3_trace(
-        torch.matmul(torch.matmul(s.transpose(1, 2), d), s))
+    mincut_den = _rank3_trace(torch.matmul(torch.matmul(s.transpose(1, 2), d), s))
     mincut_loss = -(mincut_num / mincut_den)
     mincut_loss = torch.mean(mincut_loss)
 
@@ -86,14 +99,15 @@ def dense_mincut_pool(x, adj, s, mask=None, cluster_drop_node=None):
     ss = torch.matmul(s.transpose(1, 2), s)
     i_s = torch.eye(k).type_as(ss)
     ortho_loss = torch.norm(
-        ss / torch.norm(ss, dim=(-1, -2), keepdim=True) -
-        i_s / torch.norm(i_s), dim=(-1, -2))
+        ss / torch.norm(ss, dim=(-1, -2), keepdim=True) - i_s / torch.norm(i_s),
+        dim=(-1, -2),
+    )
     ortho_loss = torch.mean(ortho_loss)
 
     # Fix and normalize coarsened adjacency matrix.
     ind = torch.arange(k, device=out_adj.device)
     out_adj[:, ind, ind] = 0
-    d = torch.einsum('ijk->ij', out_adj)
+    d = torch.einsum("ijk->ij", out_adj)
     d = torch.sqrt(d)[:, None] + EPS
     out_adj = (out_adj / d) / d.transpose(1, 2)
 
@@ -101,25 +115,15 @@ def dense_mincut_pool(x, adj, s, mask=None, cluster_drop_node=None):
 
     return s, out, out_adj, mincut_loss, ortho_loss
 
+
 def _rank3_trace(x):
-    return torch.einsum('ijj->i', x)
+    return torch.einsum("ijj->i", x)
 
 
 def _rank3_diag(x):
     eye = torch.eye(x.size(1)).type_as(x)
     out = eye * x.unsqueeze(2).expand(*x.size(), x.size(1))
     return out
-
-
-from typing import List, Optional, Tuple, Union
-
-import torch
-import torch.nn.functional as F
-from torch import Tensor
-
-from torch_geometric.nn.dense.mincut_pool import _rank3_trace
-
-EPS = 1e-15
 
 
 def dense_dmon_pool(x, adj, s, mask=None):
@@ -162,8 +166,8 @@ def dense_dmon_pool(x, adj, s, mask=None):
 
     (batch_size, num_nodes, _), k = x.size(), s.size(-1)
     s = torch.softmax(s, dim=-1)
-    s_out = s 
-    
+    s_out = s
+
     if mask is not None:
         mask = mask.view(batch_size, num_nodes, 1).to(x.dtype)
         x, s = x * mask, s * mask
@@ -172,8 +176,8 @@ def dense_dmon_pool(x, adj, s, mask=None):
     out_adj = torch.matmul(torch.matmul(s.transpose(1, 2), adj), s)
 
     # Spectral loss:
-    degrees = torch.einsum('ijk->ik', adj).transpose(0, 1)
-    m = torch.einsum('ij->', degrees)
+    degrees = torch.einsum("ijk->ik", adj).transpose(0, 1)
+    m = torch.einsum("ij->", degrees)
 
     ca = torch.matmul(s.transpose(1, 2), degrees)
     cb = torch.matmul(degrees.transpose(0, 1), s)
@@ -187,21 +191,22 @@ def dense_dmon_pool(x, adj, s, mask=None):
     ss = torch.matmul(s.transpose(1, 2), s)
     i_s = torch.eye(k).type_as(ss)
     ortho_loss = torch.norm(
-        ss / torch.norm(ss, dim=(-1, -2), keepdim=True) -
-        i_s / torch.norm(i_s), dim=(-1, -2))
+        ss / torch.norm(ss, dim=(-1, -2), keepdim=True) - i_s / torch.norm(i_s),
+        dim=(-1, -2),
+    )
     ortho_loss = torch.mean(ortho_loss)
 
     # Cluster loss:
-    cluster_loss = torch.norm(torch.einsum(
-        'ijk->ij', ss)) / adj.size(1) * torch.norm(i_s) - 1
+    cluster_loss = (
+        torch.norm(torch.einsum("ijk->ij", ss)) / adj.size(1) * torch.norm(i_s) - 1
+    )
 
     # Fix and normalize coarsened adjacency matrix:
     ind = torch.arange(k, device=out_adj.device)
     out_adj[:, ind, ind] = 0
-    d = torch.einsum('ijk->ij', out_adj)
+    d = torch.einsum("ijk->ij", out_adj)
     d = torch.sqrt(d)[:, None] + EPS
     out_adj = (out_adj / d) / d.transpose(1, 2)
-
 
     return s_out, out, out_adj, spectral_loss, ortho_loss, cluster_loss
 
@@ -212,9 +217,9 @@ EPS = 1e-15
 
 
 def simplify_pool(x, adj, s, mask=None, normalize=True):
-    r"""The Just Balance pooling operator from the `"Simplifying Clustering with 
+    r"""The Just Balance pooling operator from the `"Simplifying Clustering with
     Graph Neural Networks" <https://arxiv.org/abs/2207.08779>`_ paper
-    
+
     .. math::
         \mathbf{X}^{\prime} &= {\mathrm{softmax}(\mathbf{S})}^{\top} \cdot
         \mathbf{X}
@@ -223,7 +228,7 @@ def simplify_pool(x, adj, s, mask=None, normalize=True):
     based on dense learned assignments :math:`\mathbf{S} \in \mathbb{R}^{B
     \times N \times C}`.
     Returns the pooled node feature matrix, the coarsened and symmetrically
-    normalized adjacency matrix and the following auxiliary objective: 
+    normalized adjacency matrix and the following auxiliary objective:
     .. math::
         \mathcal{L} = - {\mathrm{Tr}(\sqrt{\mathbf{S}^{\top} \mathbf{S}})}
     Args:
@@ -251,7 +256,7 @@ def simplify_pool(x, adj, s, mask=None, normalize=True):
     (batch_size, num_nodes, _), k = x.size(), s.size(-1)
 
     s = torch.softmax(s, dim=-1)
-    s_out = s 
+    s_out = s
 
     if mask is not None:
         mask = mask.view(batch_size, num_nodes, 1).to(x.dtype)
@@ -259,7 +264,7 @@ def simplify_pool(x, adj, s, mask=None, normalize=True):
 
     out = torch.matmul(s.transpose(1, 2), x)
     out_adj = torch.matmul(torch.matmul(s.transpose(1, 2), adj), s)
-    
+
     # Loss
     ss = torch.matmul(s.transpose(1, 2), s)
     ss_sqrt = torch.sqrt(ss + EPS)
@@ -270,7 +275,7 @@ def simplify_pool(x, adj, s, mask=None, normalize=True):
     # Fix and normalize coarsened adjacency matrix.
     ind = torch.arange(k, device=out_adj.device)
     out_adj[:, ind, ind] = 0
-    d = torch.einsum('ijk->ij', out_adj)
+    d = torch.einsum("ijk->ij", out_adj)
     d = torch.sqrt(d)[:, None] + EPS
     out_adj = (out_adj / d) / d.transpose(1, 2)
 
@@ -278,4 +283,4 @@ def simplify_pool(x, adj, s, mask=None, normalize=True):
 
 
 def _rank3_trace(x):
-    return torch.einsum('ijj->i', x)
+    return torch.einsum("ijj->i", x)

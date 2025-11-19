@@ -1,12 +1,36 @@
+import sys
+from pathlib import Path
+import math
+
 import torch
-from torch_geometric.nn import global_add_pool
-from torch.nn import Embedding, Linear
-from torch_geometric.utils import degree, to_scipy_sparse_matrix, segregate_self_loops
 import torch.nn.functional as F
+from torch.nn import Embedding, Linear
+from torch_geometric.nn import global_add_pool
+from torch_geometric.utils import degree, to_scipy_sparse_matrix, segregate_self_loops
 from torch_scatter import scatter
+from torch_geometric.utils import (
+    dense_to_sparse,
+    to_dense_adj,
+    to_dense_batch,
+    dropout_adj,
+    degree,
+    subgraph,
+    softmax,
+    add_remaining_self_loops,
+)
+
+## for cluster
+from torch_geometric.nn.norm import GraphNorm
+import torch_geometric
+
+
 import numpy as np
 import scipy.sparse as sp
-from models.layers import (
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT))
+
+from src.models.layers import (
     MLP,
     Drug_PNAConv,
     Protein_PNAConv,
@@ -18,28 +42,13 @@ from models.layers import (
 )
 
 ## for drug pooling
-from models.drug_pool import MotifPool
+from src.models.drug_pool import MotifPool
 
 ## for cluster
-from torch_geometric.utils import (
-    dense_to_sparse,
-    to_dense_adj,
-    to_dense_batch,
-    dropout_adj,
-    degree,
-    subgraph,
-    softmax,
-    add_remaining_self_loops,
-)
-from models.protein_pool import dense_mincut_pool, dense_dmon_pool, simplify_pool
-
-## for cluster
-from torch_geometric.nn.norm import GraphNorm
-import torch_geometric
+from src.models.protein_pool import dense_mincut_pool
 
 
 EPS = 1e-15
-import math
 
 
 class net(torch.nn.Module):
