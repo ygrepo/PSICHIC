@@ -38,7 +38,7 @@ echo "JOB START: $(date)"
 echo "JOBID     : ${LSB_JOBID:-local}  IDX=${LSB_JOBINDEX:-}"
 echo "HOST      : $(hostname)"
 echo "PWD       : $(pwd)"
-echo "LOG FILE  : ${log_file}"
+echo "LOG FILE  : ${LOG_FILE}"
 echo "------------------------------------------------------------"
 
 # ---- Modules / shell setup ----
@@ -114,7 +114,7 @@ echo "------------------------------------------------------------"
 
 set +e
 "${PYTHON}" "${MAIN}" \
-  --log_fn "${log_file}" \
+  --log_fn "${LOG_FILE}" \
   --log_level "${LOG_LEVEL}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
