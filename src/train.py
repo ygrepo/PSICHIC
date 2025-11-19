@@ -17,6 +17,9 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.utils import (
     setup_logging,
     get_logger,
+)
+
+from src.model_utils import (
     compute_pna_degrees,
     CustomWeightedRandomSampler,
 )
