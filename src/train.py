@@ -538,7 +538,9 @@ def initialize_model(
     return model
 
 
-def initialize_trainer(model, config, train_loader, args, device, model_path):
+def initialize_trainer(
+    model, config, train_loader, total_iters, epochs, args, device, model_path
+):
     """Initializes the training engine."""
 
     # Determine evaluation metric
@@ -563,8 +565,8 @@ def initialize_trainer(model, config, train_loader, args, device, model_path):
         amsgrad=config["optimizer"]["amsgrad"],
         clip=config["optimizer"]["clip"],
         steps_per_epoch=len(train_loader),
-        num_epochs=args.epochs,
-        total_iters=args.total_iters,
+        num_epochs=epochs,
+        total_iters=total_iters,
         warmup_iters=config["optimizer"]["warmup_iters"],
         lr_decay_iters=config["optimizer"]["lr_decay_iters"],
         schedule_lr=config["optimizer"]["schedule_lr"],
@@ -651,8 +653,15 @@ def main():
         logger.info(f"Learning rate: {args.lrate}")
         logger.info(f"Number of rows to load: {args.n}")
         logger.info(f"Batch size: {args.batch_size}")
-        logger.info(f"Total iters: {args.total_iters}")
-        logger.info(f"Epochs: {args.epochs}")
+        total_iters = args.total_iters
+        epochs = args.epochs
+        if epochs is not None and total_iters is not None:
+            logger.info(
+                "If epochs and total iters are both not None, then we only use iters."
+            )
+            epochs = None
+        logger.info(f"Total iters: {total_iters}")
+        logger.info(f"Epochs: {epochs}")
         logger.info(f"Seed: {args.seed}")
         logger.info(f"Regression task: {args.regression_task}")
         logger.info(f"Classification task: {args.classification_task}")
@@ -702,7 +711,7 @@ def main():
         )
         model = initialize_model(config, mol_deg, prot_deg, device, args)
         engine = initialize_trainer(
-            model, config, train_loader, args, device, model_path
+            model, config, train_loader, total_iters, epochs, args, device, model_path
         )
 
         # 4. Run Training

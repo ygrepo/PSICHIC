@@ -93,7 +93,7 @@ BATCH_SIZE=16
 N=10
 
 DATAFOLDER="./dataset/pdb2020"
-TRAINED_MODEL_PATH=""
+TRAINED_MODEL_PATH="."
 
 MAIN="src/train.py"
 
