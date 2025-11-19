@@ -142,6 +142,7 @@ def parse_args() -> argparse.Namespace:
         "--betas", type=tuple_type, default="(0.9,0.999)", help="AdamW betas"
     )
     ### Batching and Sampling
+    parser.add_argument("--n", type=int, default=0, help="Number of rows to load")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument(
         "--sampling_col", type=str, default="", help="Column for weighted sampling"
@@ -303,13 +304,21 @@ def setup_environment(
 
 def load_dataframes(
     datafolder: Path,
+    n: int = 0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads the train, validation, and test dataframes."""
-    train_df = pd.read_csv(datafolder / "train.csv")
-    test_df = pd.read_csv(datafolder / "test.csv")
-
+    logger.info("Loading dataframes...")
+    train_path = datafolder / "train.csv"
+    test_path = datafolder / "test.csv"
     valid_path = datafolder / "valid.csv"
-    valid_df = pd.read_csv(valid_path)
+    if n > 0:
+        train_df = pd.read_csv(train_path, nrows=n)
+        test_df = pd.read_csv(test_path, nrows=n)
+        valid_df = pd.read_csv(valid_path, nrows=n)
+    else:
+        train_df = pd.read_csv(train_path)
+        test_df = pd.read_csv(test_path)
+        valid_df = pd.read_csv(valid_path)
 
     return train_df, test_df, valid_df
 
@@ -353,6 +362,7 @@ def load_or_init_graphs(
         protein_dict = torch.load(protein_path)
     else:
         logger.info("Initialising Protein Sequence to Protein Graph...")
+        logger.info(f"Number of unique proteins: {len(protein_seqs)}")
         protein_dict = protein_init(protein_seqs)
         torch.save(protein_dict, protein_path)
 
@@ -363,10 +373,12 @@ def load_or_init_graphs(
         ligand_dict = torch.load(ligand_path)
     else:
         logger.info("Initialising Ligand SMILES to Ligand Graph...")
+        logger.info(f"Number of unique ligands: {len(ligand_smiles)}")
         ligand_dict = ligand_init(ligand_smiles)
         torch.save(ligand_dict, ligand_path)
 
     torch.cuda.empty_cache()
+    logger.info("Graph data loaded/initialised.")
     return protein_dict, ligand_dict
 
 
@@ -635,6 +647,7 @@ def main():
         logger.info(f"Config path: {args.config_path}")
         logger.info(f"Trained model path: {args.trained_model_path}")
         logger.info(f"Learning rate: {args.lrate}")
+        logger.info(f"Number of rows to load: {args.n}")
         logger.info(f"Batch size: {args.batch_size}")
         logger.info(f"Total iters: {args.total_iters}")
         logger.info(f"Epochs: {args.epochs}")
@@ -666,7 +679,7 @@ def main():
 
         # 2. Load Data
         datafolder = args.datafolder.resolve()
-        train_df, test_df, valid_df = load_dataframes(datafolder)
+        train_df, test_df, valid_df = load_dataframes(datafolder, args.n)
         protein_dict, ligand_dict = load_or_init_graphs(
             datafolder, train_df, test_df, valid_df
         )

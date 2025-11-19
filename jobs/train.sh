@@ -89,6 +89,7 @@ LRATE=1e-4
 EPS=1e-8
 BETAS="(0.9,0.999)"
 BATCH_SIZE=16
+N=10
 
 DATAFOLDER="./dataset/pdb2020"
 TRAINED_MODEL_PATH=""
@@ -106,6 +107,7 @@ echo "Regression task: ${REGRESSION_TASK}"
 echo "Classification task: ${CLASSIFICATION_TASK}"
 echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
 echo "EPOCHS: ${EPOCHS}"
+echo "N: ${N}"
 echo "Evaluate epoch: ${EVALUATE_EPOCH}"
 echo "Total iters: ${TOTAL_ITERS}"
 echo "Evaluate step: ${EVALUATE_STEP}"
@@ -130,6 +132,7 @@ set +e
   --classification_task "${CLASSIFICATION_TASK}" \
   --mclassification_task "${MCLASSIFICATION_TASK}" \
   --epochs "${EPOCHS}" \
+  --n "${N}" \
   --evaluate_epoch "${EVALUATE_EPOCH}" \
   --total_iters "${TOTAL_ITERS}" \
   --evaluate_step "${EVALUATE_STEP}" \

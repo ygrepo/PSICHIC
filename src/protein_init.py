@@ -24,6 +24,8 @@ logger = get_logger(__name__)
 
 
 def protein_init(seqs: list[str]) -> dict[str, dict]:
+    """Initializes protein graphs from sequences."""
+    logger.info("Initializing protein graphs from sequences")
     result_dict = {}
     model_location = "esm2_t33_650M_UR50D"
     model, alphabet = esm.pretrained.load_model_and_alphabet(model_location)

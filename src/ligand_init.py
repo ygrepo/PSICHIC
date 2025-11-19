@@ -77,7 +77,7 @@ def atom_features(atom: Chem.rdchem.Atom) -> np.ndarray:
         encoding += one_of_k_encoding_unk(atom.GetProp("_CIPCode"), ["R", "S"]) + [
             atom.HasProp("_ChiralityPossible")
         ]
-    except exception as e:
+    except Exception as e:
         logger.warning(f"Chirality error: {e}")
         encoding += [0, 0] + [atom.HasProp("_ChiralityPossible")]
 
