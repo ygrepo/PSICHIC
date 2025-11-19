@@ -197,19 +197,29 @@ def load_and_merge_config(
 ) -> dict:
     """Loads the base JSON config and overwrites it with args."""
 
-    # Logic fix: If finetuning, load config from model dir. Else, load from config_path.
+    # Check if trained_model_path is a valid model directory (not just current dir)
+    # A valid model directory should have a config.json file
+    trained_config_file = trained_model_path / "config.json"
+
+    # Only use trained model config if:
+    # 1. The path is not empty/current directory
+    # 2. The config.json actually exists in that directory
     if (
-        trained_model_path.exists()
-        and str(trained_model_path) != ""
-        and str(trained_model_path) != "."
+        str(trained_model_path) not in ["", ".", os.getcwd()]
+        and trained_config_file.exists()
     ):
         logger.info(f"Loading config from trained_model_path: {trained_model_path}")
-        config_file = trained_model_path / "config.json"
+        config_file = trained_config_file
     else:
-        logger.info(f"Loading config from: {config_path}")
+        logger.info(f"Loading config from config_path: {config_path}")
         config_file = config_path / "config.json"
 
     logger.info(f"Loading configuration from: {config_file}")
+
+    # Check if config file exists before trying to open it
+    if not config_file.exists():
+        raise FileNotFoundError(f"Config file not found: {config_file}")
+
     with open(config_file, "r") as f:
         config = json.load(f)
 
@@ -222,6 +232,45 @@ def load_and_merge_config(
     config["tasks"]["mclassification_task"] = mclassification_task
 
     return config
+
+
+# def load_and_merge_config(
+#     trained_model_path: Path,
+#     config_path: Path,
+#     lrate: float,
+#     eps: float,
+#     betas: tuple,
+#     regression_task: bool,
+#     classification_task: bool,
+#     mclassification_task: int,
+# ) -> dict:
+#     """Loads the base JSON config and overwrites it with args."""
+
+#     # Logic fix: If finetuning, load config from model dir. Else, load from config_path.
+#     if (
+#         trained_model_path.exists()
+#         and str(trained_model_path) != ""
+#         and str(trained_model_path) != "."
+#     ):
+#         logger.info(f"Loading config from trained_model_path: {trained_model_path}")
+#         config_file = trained_model_path / "config.json"
+#     else:
+#         logger.info(f"Loading config from: {config_path}")
+#         config_file = config_path / "config.json"
+
+#     logger.info(f"Loading configuration from: {config_file}")
+#     with open(config_file, "r") as f:
+#         config = json.load(f)
+
+#     # Overwrite config with command-line arguments
+#     config["optimizer"]["lrate"] = lrate
+#     config["optimizer"]["eps"] = eps
+#     config["optimizer"]["betas"] = betas
+#     config["tasks"]["regression_task"] = regression_task
+#     config["tasks"]["classification_task"] = classification_task
+#     config["tasks"]["mclassification_task"] = mclassification_task
+
+#     return config
 
 
 def setup_environment(
