@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from src.utils import (
     setup_logging,
     get_logger,
+    str2bool,
 )
 
 from src.model_utils import (
@@ -98,18 +99,21 @@ def parse_args() -> argparse.Namespace:
         help="Path to save interpretation results",
     )
     parser.add_argument(
-        "--save_interpret", type=bool, default=True, help="Save interpretation results"
+        "--save_interpret",
+        type=str2bool,
+        default=True,
+        help="Save interpretation results",
     )
     ### Task Type
     parser.add_argument(
         "--regression_task",
-        type=bool,
+        type=str2bool,
         default=True,
         help="True if regression else False",
     )
     parser.add_argument(
         "--classification_task",
-        type=bool,
+        type=str2bool,
         default=False,
         help="True if classification else False",
     )
@@ -162,7 +166,7 @@ def parse_args() -> argparse.Namespace:
         help="List of modules to finetune",
     )
 
-    parser.add_argument("--nb_mode", type=bool, default=False)
+    parser.add_argument("--nb_mode", type=str2bool, default=False)
 
     parser.add_argument("--log_fn", type=str, default="train.log")
     parser.add_argument(

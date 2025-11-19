@@ -1,24 +1,10 @@
-import os
 import sys
+import argparse
 from pathlib import Path
-from tqdm import tqdm
-from itertools import repeat
 
 import logging
 import pandas as pd
 import torch
-
-
-import numpy as np
-from torch import Tensor
-
-from torch_geometric.loader import DataLoader
-from torch_geometric.utils import degree
-from torch_geometric.data import Batch
-
-from rdkit import Chem
-from rdkit.Chem import PropertyPickleOptions
-import pickle
 
 
 # ---- One base for everything ----
@@ -97,3 +83,14 @@ def read_csv_parquet_torch(fn: Path) -> pd.DataFrame:
     if fn.suffix == ".pt":
         return torch.load(fn)
     raise ValueError(f"Unsupported file format: {fn.suffix}")
+
+
+def str2bool(v: str) -> bool:
+    if isinstance(v, bool):
+        return v
+    v = v.lower()
+    if v in ("yes", "true", "t", "y", "1"):
+        return True
+    if v in ("no", "false", "f", "n", "0"):
+        return False
+    raise argparse.ArgumentTypeError(f"Boolean value expected, got '{v}'.")
