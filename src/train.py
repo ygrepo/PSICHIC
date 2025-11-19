@@ -582,7 +582,6 @@ def main():
         logger.info(f"Config path: {args.config_path}")
         logger.info(f"Trained model path: {args.trained_model_path}")
         logger.info(f"Learning rate: {args.lrate}")
-        logger.info(f"Weight decay: {args.wdecay}")
         logger.info(f"Batch size: {args.batch_size}")
         logger.info(f"Total iters: {args.total_iters}")
         logger.info(f"Epochs: {args.epochs}")
