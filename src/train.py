@@ -235,45 +235,6 @@ def load_and_merge_config(
     return config
 
 
-# def load_and_merge_config(
-#     trained_model_path: Path,
-#     config_path: Path,
-#     lrate: float,
-#     eps: float,
-#     betas: tuple,
-#     regression_task: bool,
-#     classification_task: bool,
-#     mclassification_task: int,
-# ) -> dict:
-#     """Loads the base JSON config and overwrites it with args."""
-
-#     # Logic fix: If finetuning, load config from model dir. Else, load from config_path.
-#     if (
-#         trained_model_path.exists()
-#         and str(trained_model_path) != ""
-#         and str(trained_model_path) != "."
-#     ):
-#         logger.info(f"Loading config from trained_model_path: {trained_model_path}")
-#         config_file = trained_model_path / "config.json"
-#     else:
-#         logger.info(f"Loading config from: {config_path}")
-#         config_file = config_path / "config.json"
-
-#     logger.info(f"Loading configuration from: {config_file}")
-#     with open(config_file, "r") as f:
-#         config = json.load(f)
-
-#     # Overwrite config with command-line arguments
-#     config["optimizer"]["lrate"] = lrate
-#     config["optimizer"]["eps"] = eps
-#     config["optimizer"]["betas"] = betas
-#     config["tasks"]["regression_task"] = regression_task
-#     config["tasks"]["classification_task"] = classification_task
-#     config["tasks"]["mclassification_task"] = mclassification_task
-
-#     return config
-
-
 def setup_environment(
     seed: int,
     model_path: Path,

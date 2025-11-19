@@ -2,6 +2,8 @@ from rdkit import Chem
 from rdkit.Chem.rdchem import BondType
 
 from rdkit.Chem import ChemicalFeatures
+from rdkit.Chem import rdmolops
+
 from rdkit import RDConfig
 import os
 import numpy as np
@@ -329,17 +331,28 @@ class MoleculeGraphDataset:
         return feature
 
     def mol_full_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
-        atom_ids = []
-        atom_feats = []
-        Chem.AssignAtomChiralTags(mol, force=True)
-        Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
-        for atom in mol.GetAtoms():
-            atom_ids.append(atom.GetIdx())
-            features = atom_features(atom)
-            atom_feats.append(features)
-        feature = np.array(list(zip(*sorted(zip(atom_ids, atom_feats))))[-1])
+        """Return per-atom feature matrix of shape (num_atoms, feat_dim)."""
 
-        return feature
+        # Ensure chirality info is assigned
+        rdmolops.AssignAtomChiralTags(mol, force=True)
+        Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
+
+        atom_feats = [atom_features(atom) for atom in mol.GetAtoms()]
+        features = np.vstack(atom_feats)
+        return features
+
+    # def mol_full_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
+    #     atom_ids = []
+    #     atom_feats = []
+    #     Chem.AssignAtomChiralTags(mol, force=True)
+    #     Chem.AssignStereochemistry(mol, cleanIt=True, force=True)
+    #     for atom in mol.GetAtoms():
+    #         atom_ids.append(atom.GetIdx())
+    #         features = atom_features(atom)
+    #         atom_feats.append(features)
+    #     feature = np.array(list(zip(*sorted(zip(atom_ids, atom_feats))))[-1])
+
+    #     return feature
 
     def bond_feature(self, mol: Chem.rdchem.Mol) -> np.ndarray:
         atom_num = len(mol.GetAtoms())
