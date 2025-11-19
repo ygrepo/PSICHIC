@@ -1,4 +1,3 @@
-import torch.utils.data
 from torch_geometric.data import Dataset
 
 # from torch.utils.data import Dataset
@@ -8,6 +7,26 @@ from torch_geometric.data import Data
 from torch_geometric.data import Dataset
 from typing import Any
 import pickle
+
+
+class MultiGraphData(Data):
+    def __inc__(self, key: str, item: Any, *args):
+        if key == "mol_edge_index":
+            return self.mol_x.size(0)
+        elif key == "clique_edge_index":
+            return self.clique_x.size(0)
+        elif key == "atom2clique_index":
+            return torch.tensor([[self.mol_x.size(0)], [self.clique_x.size(0)]])
+        elif key == "prot_edge_index":
+            return self.prot_node_aa.size(0)
+        elif key == "prot_struc_edge_index":
+            return self.prot_node_aa.size(0)
+        elif key == "m2p_edge_index":
+            return torch.tensor([[self.mol_x.size(0)], [self.prot_node_aa.size(0)]])
+        # elif key == 'edge_index_p2m':
+        #     return torch.tensor([[self.prot_node_s.size(0)],[self.mol_x.size(0)]])
+        else:
+            return super(MultiGraphData, self).__inc__(key, item, *args)
 
 
 class ProteinMoleculeDataset(Dataset):
@@ -236,23 +255,3 @@ def get_self_loop_attr(
     full_loop_attr[loop_index] = loop_attr
 
     return full_loop_attr
-
-
-class MultiGraphData(Data):
-    def __inc__(self, key: str, item: Any, *args):
-        if key == "mol_edge_index":
-            return self.mol_x.size(0)
-        elif key == "clique_edge_index":
-            return self.clique_x.size(0)
-        elif key == "atom2clique_index":
-            return torch.tensor([[self.mol_x.size(0)], [self.clique_x.size(0)]])
-        elif key == "prot_edge_index":
-            return self.prot_node_aa.size(0)
-        elif key == "prot_struc_edge_index":
-            return self.prot_node_aa.size(0)
-        elif key == "m2p_edge_index":
-            return torch.tensor([[self.mol_x.size(0)], [self.prot_node_aa.size(0)]])
-        # elif key == 'edge_index_p2m':
-        #     return torch.tensor([[self.prot_node_s.size(0)],[self.mol_x.size(0)]])
-        else:
-            return super(MultiGraphData, self).__inc__(key, item, *args)

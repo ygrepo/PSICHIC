@@ -15,6 +15,10 @@ import torch
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import degree
 
+from rdkit import Chem
+from rdkit.Chem import PropertyPickleOptions
+import pickle
+
 
 class InfiniteDataLoader(DataLoader):
     def __init__(self, *args, **kwargs):
@@ -25,7 +29,7 @@ class InfiniteDataLoader(DataLoader):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def __next__(self) -> torch_geometric.data.Batch:
         try:
             batch = next(self.dataset_iterator)
         except StopIteration:
@@ -50,7 +54,7 @@ class CustomWeightedRandomSampler(torch.utils.data.WeightedRandomSampler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def __iter__(self):
+    def __iter__(self) -> list[int]:
         rand_tensor = np.random.choice(
             range(0, len(self.weights)),
             size=self.num_samples,
@@ -67,7 +71,9 @@ def sampler_from_weights(weights):
     return sampler
 
 
-def create_custom_sampler(class_list, specified_weight={}):
+def create_custom_sampler(
+    class_list: list, specified_weight: dict = {}
+) -> CustomWeightedRandomSampler:
     assert isinstance(specified_weight, dict)
     class_list = np.array(class_list)
     class_weight = {
@@ -85,7 +91,9 @@ def create_custom_sampler(class_list, specified_weight={}):
     return sampler
 
 
-def compute_pna_degrees(train_loader: DataLoader):
+def compute_pna_degrees(
+    train_loader: DataLoader,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     mol_max_degree = -1
     clique_max_degree = -1
     prot_max_degree = -1
@@ -265,11 +273,6 @@ def minmax_norm(arr):
 
 def percentile_rank(arr):
     return np.argsort(np.argsort(arr)) / (len(arr) - 1)
-
-
-from rdkit import Chem
-from rdkit.Chem import PropertyPickleOptions
-import pickle
 
 
 def store_ligand_score(ligand_smiles, atom_types, atom_scores, ligand_path):
