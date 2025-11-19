@@ -45,6 +45,7 @@ echo "------------------------------------------------------------"
 module purge || true
 module load anaconda3/latest || true
 module load cuda/12.4.0 || true
+ml proxies/1 || true
 
 # ---- Conda bootstrap ----
 if ! base_dir="$(conda info --base 2>/dev/null)"; then
@@ -66,6 +67,9 @@ echo "Activating conda env: ${ENV_PREFIX}"
 conda activate "${ENV_PREFIX}" || { echo "[ERROR] conda activate failed"; exit 1; }
 PYTHON="${ENV_PREFIX}/bin/python"
 [[ -x "${PYTHON}" ]] || PYTHON="python"
+
+export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
+export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/hf_token.csv"
 
 # ---- Project paths ----
 CONFIG_PATH="config"
