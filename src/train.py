@@ -178,11 +178,11 @@ def parse_args() -> argparse.Namespace:
     )
     args = parser.parse_args()
 
-    if args.epochs is not None and args.total_iters is not None:
-        logger.info(
-            "If epochs and total iters are both not None, then we only use iters."
-        )
-        args.epochs = None
+    # if args.epochs is not None and args.total_iters is not None:
+    #     logger.info(
+    #         "If epochs and total iters are both not None, then we only use iters."
+    #     )
+    #     args.epochs = None
 
     return args
 
@@ -459,7 +459,7 @@ def get_pna_degrees(
     • The degrees are saved to disk so repeated training is deterministic and fast.
     • All downstream PNAConv layers rely on these tensors for correct scaling.
     """
-    if not trained_model_path.exists():
+    if not trained_model_path.exists() or str(trained_model_path) == ".":
         # Compute degrees from scratch
         degree_path = datafolder / "degree.pt"
         if not degree_path.exists():
