@@ -32,7 +32,7 @@ from src.utils import virtual_screening
 
 from src.dataset import ProteinMoleculeDataset
 from utils.trainer import Trainer
-from utils.metrics import *
+from src.metrics import evaluate_reg, evaluate_cls, evaluate_mcls
 
 # Preprocessing
 from src.protein_init import protein_init
