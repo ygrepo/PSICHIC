@@ -151,7 +151,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--trained_model_path",
         type=Path,
-        default="",
+        default=".",
         help="Path to a pretrained model directory",
     )
     parser.add_argument(
@@ -198,7 +198,11 @@ def load_and_merge_config(
     """Loads the base JSON config and overwrites it with args."""
 
     # Logic fix: If finetuning, load config from model dir. Else, load from config_path.
-    if trained_model_path.exists() and str(trained_model_path) != "":
+    if (
+        trained_model_path.exists()
+        and str(trained_model_path) != ""
+        and str(trained_model_path) != "."
+    ):
         logger.info(f"Loading config from trained_model_path: {trained_model_path}")
         config_file = trained_model_path / "config.json"
     else:
