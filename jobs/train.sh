@@ -16,7 +16,7 @@
 
 # --------------------------------
 
-set -Eeuo pipefail
+set -Eeo pipefail
 trap 'ec=$?; echo "[ERROR] line ${LINENO} status ${ec}" >&2' ERR
 
 # --- Make sure a logs dir exists in the SUBMISSION directory ---
