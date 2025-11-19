@@ -14,6 +14,7 @@ import torch
 
 from torch_geometric.loader import DataLoader
 from torch_geometric.utils import degree
+from torch_geometric.data import Batch
 
 from rdkit import Chem
 from rdkit.Chem import PropertyPickleOptions
@@ -29,7 +30,7 @@ class InfiniteDataLoader(DataLoader):
     def __iter__(self):
         return self
 
-    def __next__(self) -> torch_geometric.data.Batch:
+    def __next__(self) -> Batch:
         try:
             batch = next(self.dataset_iterator)
         except StopIteration:
@@ -157,7 +158,7 @@ def compute_pna_degrees(
     return mol_deg, clique_deg, prot_deg
 
 
-def unbatch(src, batch, dim: int = 0):
+def unbatch(src: Tensor, batch: Batch, dim: int = 0):
     r"""Splits :obj:`src` according to a :obj:`batch` vector along dimension
     :obj:`dim`.
 
@@ -182,7 +183,9 @@ def unbatch(src, batch, dim: int = 0):
     return src.split(sizes, dim)
 
 
-def unbatch_nodes(data_tensor, index_tensor):
+def unbatch_nodes(
+    data_tensor: torch.Tensor, index_tensor: torch.Tensor
+) -> list[torch.Tensor]:
     """
     Unbatch a data tensor based on an index tensor.
 
@@ -197,18 +200,18 @@ def unbatch_nodes(data_tensor, index_tensor):
     return [data_tensor[index_tensor == i] for i in index_tensor.unique()]
 
 
-def repeater(data_loader):
+def repeater(data_loader: DataLoader):
     for loader in repeat(data_loader):
         for data in loader:
             yield data
 
 
-def printline(line):
-    sys.stdout.write(line + "\x1b[K\r")
-    sys.stdout.flush()
+# def printline(line):
+#     sys.stdout.write(line + "\x1b[K\r")
+#     sys.stdout.flush()
 
 
-def protein_degree_from_dict(protein_dict):
+def protein_degree_from_dict(protein_dict: dict[str, dict]) -> torch.Tensor:
     protein_max_degree = -1
     for k, v in protein_dict.items():
         node_num = len(v["seq"])
@@ -226,7 +229,9 @@ def protein_degree_from_dict(protein_dict):
     return protein_deg
 
 
-def ligand_degree_from_dict(ligand_dict):
+def ligand_degree_from_dict(
+    ligand_dict: dict[str, dict],
+) -> tuple[torch.Tensor, torch.Tensor]:
     mol_max_degree = -1
     clique_max_degree = -1
 
@@ -267,11 +272,11 @@ def ligand_degree_from_dict(ligand_dict):
     return mol_deg, clique_deg
 
 
-def minmax_norm(arr):
+def minmax_norm(arr: np.ndarray) -> np.ndarray:
     return (arr - arr.min()) / (arr.max() - arr.min())
 
 
-def percentile_rank(arr):
+def percentile_rank(arr: np.ndarray) -> np.ndarray:
     return np.argsort(np.argsort(arr)) / (len(arr) - 1)
 
 
