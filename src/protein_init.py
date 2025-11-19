@@ -34,7 +34,7 @@ def protein_init(seqs: list[str]) -> dict[str, dict]:
 
     for seq in tqdm(seqs):
         seq_feat = seq_feature(seq)
-        token_repr, contact_map_proba, logits = esm_extract(
+        token_repr, contact_map_proba, _ = esm_extract(
             model, batch_converter, seq, layer=33, approach="last", dim=1280
         )
 
@@ -366,10 +366,10 @@ def esm_extract(
     layer: int = 36,
     approach: str = "mean",
     dim: int = 2560,
-) -> tuple[Tensor, Tensor, np.ndarray]:
+) -> tuple[Tensor, Tensor, Tensor]:
     pro_id = "A"
     if len(seq) <= 700:
-        batch_tokens = batch_converter([pro_id, seq])
+        batch_tokens = batch_converter([(pro_id, seq)])
         batch_tokens = batch_tokens.to(
             next(model.parameters()).device, non_blocking=True
         )
@@ -423,7 +423,7 @@ def esm_extract(
 
             # prediction
             temp_seq = seq[start:end]
-            batch_tokens = batch_converter([pro_id, temp_seq])
+            batch_tokens = batch_converter([(pro_id, temp_seq)])
             batch_tokens = batch_tokens.to(
                 next(model.parameters()).device, non_blocking=True
             )
