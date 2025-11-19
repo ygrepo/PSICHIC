@@ -81,6 +81,7 @@ INTERPRET_PATH="${RESULT_PATH}/interpretation_result"
 REGRESSION_TASK=True
 CLASSIFICATION_TASK=False
 MCLASSIFICATION_TASK=0
+SAVE_INTERPRET=True
 EPOCHS=30
 EVALUATE_EPOCH=1
 TOTAL_ITERS=30000
@@ -106,6 +107,7 @@ echo "Interpret path: ${INTERPRET_PATH}"
 echo "Regression task: ${REGRESSION_TASK}"
 echo "Classification task: ${CLASSIFICATION_TASK}"
 echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
+echo "Save interpret: ${SAVE_INTERPRET}"
 echo "EPOCHS: ${EPOCHS}"
 echo "N: ${N}"
 echo "Evaluate epoch: ${EVALUATE_EPOCH}"
