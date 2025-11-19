@@ -3,10 +3,7 @@ import numpy as np
 import sys
 
 # Check if the code is running in a Jupyter notebook
-if "ipykernel" in sys.modules:
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
+from tqdm import tqdm
 
 
 from itertools import repeat
