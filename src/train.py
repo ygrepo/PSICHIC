@@ -235,7 +235,7 @@ def setup_environment(
     interpret_path: Path,
     device: str,
 ) -> tuple[torch.device, Path, Path]:
-    """Sets random seeds, creates directories, and sets device."""
+    """Sets random seeds, and sets device."""
 
     # Set random seeds
     np.random.seed(seed)
@@ -246,7 +246,12 @@ def setup_environment(
     os.environ["PYTHONHASHSEED"] = str(seed)
 
     # Set device
-    device = torch.device(device)
+    # Validate and set device
+    try:
+        device = torch.device(device)
+    except Exception:
+        logger.error(f"Invalid device '{device}', falling back to CPU")
+        device = torch.device("cpu")
 
     logger.info(f"Set seed to {seed}")
     logger.info(f"Using device: {device}")
@@ -487,7 +492,7 @@ def initialize_model(
     mol_deg: torch.Tensor,
     prot_deg: torch.Tensor,
     device: str,
-    trained_model_path: Path,
+    trained_model_path: Path | None,
 ) -> net:
     """Initializes the network model and loads pretrained weights if specified."""
 
@@ -517,7 +522,7 @@ def initialize_model(
 
     model.reset_parameters()
 
-    if trained_model_path.exists():
+    if trained_model_path is not None and trained_model_path.exists():
         param_dict = trained_model_path / "model.pt"
         model.load_state_dict(torch.load(param_dict, map_location=device), strict=False)
         logger.info(f"Pretrained model loaded from: {param_dict}")
