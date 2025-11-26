@@ -743,9 +743,6 @@ def main():
             args.result_path,
             args.seed,
             args.finetune_modules,
-            args.regression_weight,
-            args.classification_weight,
-            args.mclassification_weight,
         )
 
         # Run Training
