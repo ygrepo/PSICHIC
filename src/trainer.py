@@ -662,7 +662,7 @@ class Trainer(object):
                         output_lines[9] = " " * 30
                         output_lines[10] = test_str
 
-                         timestamp = datetime.now()
+                        timestamp = datetime.now()
                         year = timestamp.year
                         day_of_year = (
                             timestamp.timetuple().tm_yday
@@ -967,7 +967,7 @@ class Trainer(object):
             reg_truths = torch.cat(reg_truths).detach().cpu().numpy()
             try:
                 eval_reg_result = evaluate_reg(reg_truths, reg_preds)
-            except:
+            except Exception as e:
                 eval_reg_result = {}
             eval_result.update(eval_reg_result)
 
@@ -976,7 +976,7 @@ class Trainer(object):
             cls_truths = torch.cat(cls_truths).detach().cpu().numpy()
             try:
                 eval_cls_result = evaluate_cls(cls_truths, cls_preds, threshold=0.5)
-            except:
+            except Exception as e:
                 eval_cls_result = {}
             eval_result.update(eval_cls_result)
 
@@ -991,7 +991,7 @@ class Trainer(object):
                 mcls_preds = mcls_preds.detach().cpu().numpy()
                 try:
                     eval_mcls_result = evaluate_mcls(mcls_truths, mcls_preds)
-                except:
+                except Exception as e:
                     eval_mcls_result = {}
                 eval_result.update(eval_mcls_result)
 
