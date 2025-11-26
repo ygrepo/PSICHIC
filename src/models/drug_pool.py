@@ -5,6 +5,7 @@ from torch_geometric.utils import softmax
 from torch_scatter import scatter
 from torch_geometric.nn import global_add_pool
 from models.layers import MLP, dropout_node
+from torch import Tensor
 
 
 class MotifPool(torch.nn.Module):
@@ -33,9 +34,9 @@ class MotifPool(torch.nn.Module):
         self,
         x: torch.Tensor,
         x_clique: torch.Tensor,
-        atom2clique_index: Tuple[Tensor, Tensor],
+        atom2clique_index: tuple[Tensor, Tensor],
         clique_batch: Tensor,
-        clique_edge_index: Tuple[Tensor, Tensor],
+        clique_edge_index: tuple[Tensor, Tensor],
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         row, col = atom2clique_index
         H = self.heads

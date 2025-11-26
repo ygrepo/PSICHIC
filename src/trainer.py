@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.utils import get_logger
+from src.model_utils import unbatch
 from src.metrics import evaluate_cls, evaluate_mcls, evaluate_reg
 
 logger = get_logger(__name__)

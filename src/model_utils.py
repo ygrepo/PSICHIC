@@ -226,7 +226,7 @@ def create_custom_sampler(
     return sampler
 
 
-def unbatch(src: Tensor, batch: Batch, dim: int = 0):
+def unbatch(src: Tensor, batch: Batch, dim: int = 0) -> list[Tensor]:
     r"""Splits :obj:`src` according to a :obj:`batch` vector along dimension
     :obj:`dim`.
 
