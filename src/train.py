@@ -542,6 +542,12 @@ def initialize_trainer(
     args: argparse.Namespace,
     device: str,
     model_path: Path,
+    result_path: Path,
+    seed: int,
+    finetune_modules: list[str] | None,
+    regression_weight: float = 1,
+    classification_weight: float = 1,
+    multiclassification_weight: float = 1,
 ) -> Trainer:
     """Initializes the training engine."""
 
@@ -572,12 +578,13 @@ def initialize_trainer(
         warmup_iters=config["optimizer"]["warmup_iters"],
         lr_decay_iters=config["optimizer"]["lr_decay_iters"],
         schedule_lr=config["optimizer"]["schedule_lr"],
-        regression_weight=1,
-        classification_weight=1,
+        regression_weight=regression_weight,
+        classification_weight=classification_weight,
+        multiclassification_weight=multiclassification_weight,
         evaluate_metric=evaluation_metric,
-        result_path=args.result_path,
-        runid=args.seed,
-        finetune_modules=args.finetune_modules,
+        result_path=str(result_path),
+        runid=seed,
+        finetune_modules=finetune_modules,
         device=device,
     )
 
@@ -591,24 +598,32 @@ def initialize_trainer(
 # --- Main Execution ---
 
 
-def run_training(engine, train_loader, valid_loader, test_loader, args):
+def run_training(
+    engine: Trainer,
+    train_loader: DataLoader,
+    valid_loader: DataLoader,
+    test_loader: DataLoader,
+    epochs: int,
+    evaluate_epoch: int,
+    evaluate_step: int,
+):
     """Runs the main training loop."""
     logger.info("-" * 50)
     logger.info("Start training model")
 
-    if args.epochs:
+    if epochs is not None and epochs:
         engine.train_epoch(
             train_loader,
             val_loader=valid_loader,
             test_loader=test_loader,
-            evaluate_epoch=args.evaluate_epoch,
+            evaluate_epoch=evaluate_epoch,
         )
     else:
         engine.train_step(
             train_loader,
             val_loader=valid_loader,
             test_loader=test_loader,
-            evaluate_step=args.evaluate_step,
+            evaluate_step=evaluate_step,
         )
 
     logger.info("Finished training model")
@@ -708,18 +723,41 @@ def main():
             args.device,
             args.batch_size,
         )
-
+        logger.info(
+            f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
+        )
         # Initialize Model and Trainer
         mol_deg, _, prot_deg = get_pna_degrees(
             trained_model_path, datafolder, train_loader, model_path
         )
         model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
         engine = initialize_trainer(
-            model, config, train_loader, total_iters, epochs, args, device, model_path
+            model,
+            config,
+            train_loader,
+            total_iters,
+            epochs,
+            args,
+            device,
+            model_path,
+            args.result_path,
+            args.seed,
+            args.finetune_modules,
+            args.regression_weight,
+            args.classification_weight,
+            args.mclassification_weight,
         )
 
         # Run Training
-        run_training(engine, train_loader, valid_loader, test_loader, args)
+        run_training(
+            engine,
+            train_loader,
+            valid_loader,
+            test_loader,
+            epochs,
+            args.evaluate_epoch,
+            args.evaluate_step,
+        )
 
         # Run Final Evaluation
         run_evaluation(

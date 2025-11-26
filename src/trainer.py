@@ -13,9 +13,121 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from src.utils import get_logger
 from src.metrics import evaluate_cls, evaluate_mcls, evaluate_reg
-from src.model_utils import unbatch
 
 logger = get_logger(__name__)
+
+
+def masked_mse_loss(pred, true):
+    mask = ~torch.isnan(true)
+    pred = torch.masked_select(pred, mask)
+    true = torch.masked_select(true, mask)
+    mse_val = torch.mean((true - pred) ** 2)
+
+    return mse_val
+
+
+def store_attention_result(attention_dict, keys, reg_tuples=None, cls_tuples=None):
+    interpret_dict = {}
+
+    unbatched_residue_score = unbatch(
+        attention_dict["residue_final_score"], attention_dict["protein_residue_index"]
+    )
+    unbatched_atom_score = unbatch(
+        attention_dict["atom_final_score"], attention_dict["drug_atom_index"]
+    )
+
+    unbatched_residue_layer_score = unbatch(
+        attention_dict["residue_layer_scores"], attention_dict["protein_residue_index"]
+    )
+    unbatched_clique_layer_score = unbatch(
+        attention_dict["clique_layer_scores"], attention_dict["drug_clique_index"]
+    )
+
+    for idx, key in enumerate(keys):
+        interpret_dict[key] = {
+            "residue_score": unbatched_residue_score[idx].detach().cpu().numpy(),
+            "atom_score": unbatched_atom_score[idx].detach().cpu().numpy(),
+            "residue_layer": unbatched_residue_layer_score[idx].detach().cpu().numpy(),
+            "clique_layer": unbatched_clique_layer_score[idx].detach().cpu().numpy(),
+            "mol_feature": attention_dict["mol_feature"][idx].detach().cpu().numpy(),
+            "prot_feature": attention_dict["prot_feature"][idx].detach().cpu().numpy(),
+            "interaction_fingerprint": attention_dict["interaction_fingerprint"][idx]
+            .detach()
+            .cpu()
+            .numpy(),
+        }
+        if cls_tuples:
+            interpret_dict[key]["classification_truth"] = cls_tuples[idx][0].item()
+            interpret_dict[key]["classification_prediction"] = cls_tuples[idx][1].item()
+        if reg_tuples:
+            interpret_dict[key]["regression_truth"] = reg_tuples[idx][0].item()
+            interpret_dict[key]["regression_prediction"] = reg_tuples[idx][1].item()
+
+    return interpret_dict
+
+
+def missing_mse_loss(pred, true, threshold=5.000):
+    loss = torch.tensor(0.0).to(pred.device)
+
+    ## true labels available
+    if (~torch.isnan(true)).any():
+        real_mask = ~torch.isnan(true)
+        real_pred = torch.masked_select(pred, real_mask)
+        real_true = torch.masked_select(true, real_mask)
+        loss += torch.mean((real_true - real_pred) ** 2)
+
+    # ## missing labels
+    # if torch.isnan(true).any():
+    #     miss_mask = torch.isnan(true)
+    #     miss_pred = torch.masked_select(pred, miss_mask)
+    #     miss_diff = (miss_pred - threshold).relu()
+    #     loss += torch.mean(miss_diff**2)
+
+    return loss
+
+
+def missing_ce_loss(pred, true, negative_cls=1):
+    mclass_criterion = torch.nn.CrossEntropyLoss()
+    negative_class_criterion = torch.nn.BCELoss()
+    loss = torch.tensor(0.0).to(pred.device)
+    counter = 0
+
+    if (~torch.isnan(true)).any():
+        real_mask = ~torch.isnan(true)
+        real_pred = pred[real_mask]
+        real_true = true[real_mask]
+
+        ## unknown
+        unknown_mask = torch.where(real_true == 1000)[0]
+        unknown_pred = real_pred[unknown_mask]
+        if len(unknown_pred) > 0:
+            unknown_pred = unknown_pred.softmax(dim=-1)
+            ## take binder class (agonist and antagonist) only ##
+            positive_cls = torch.ones(unknown_pred.shape[-1]).bool()
+            positive_cls[negative_cls] = False
+            positive_cls = positive_cls.to(pred.device)
+            unknown_pred = unknown_pred[:, positive_cls].sum(dim=-1)
+            ## take binder class (agonist and antagonist) only ##
+            unknown_true = (
+                torch.ones(unknown_pred.size(0)).float().to(pred.device)
+            )  ## all of them are positives
+            unknown_pred = torch.where(
+                torch.isnan(unknown_pred), torch.zeros_like(unknown_pred), unknown_pred
+            ).clamp(0, 1)
+
+            loss += negative_class_criterion(unknown_pred, unknown_true)
+            counter += 1
+
+        ## known values
+        known_mask = torch.where(real_true != 1000)[0]
+        known_pred = real_pred[known_mask]
+        known_true = real_true[known_mask]
+        if len(known_pred) > 0:
+            known_true = known_true.long()
+            loss += mclass_criterion(known_pred, known_true)
+            counter += 1
+
+    return loss
 
 
 class Trainer(object):
@@ -99,7 +211,11 @@ class Trainer(object):
             self.lr_decay_iters = lr_decay_iters
 
     def train_epoch(
-        self, train_loader, val_loader=None, test_loader=None, evaluate_epoch=1
+        self,
+        train_loader: DataLoader,
+        val_loader: DataLoader = None,
+        test_loader: DataLoader = None,
+        evaluate_epoch: int = 1,
     ):
         if self.evaluate_metric in ["rmse", "mse", "mae"]:
             best_result = float("inf")
@@ -215,7 +331,6 @@ class Trainer(object):
                 train_reg_loss = running_reg_loss / len(train_loader)
                 train_cls_loss = running_cls_loss / len(train_loader)
                 train_mcls_loss = running_mcls_loss / len(train_loader)
-                train_spectral_loss = running_spectral_loss / len(train_loader)
                 train_ortho_loss = running_ortho_loss / len(train_loader)
                 train_cluster_loss = running_cluster_loss / len(train_loader)
 
@@ -315,7 +430,11 @@ class Trainer(object):
                     f.write(test_str + "\n")
 
     def train_step(
-        self, train_loader, val_loader=None, test_loader=None, evaluate_step=1
+        self,
+        train_loader: DataLoader,
+        val_loader: DataLoader = None,
+        test_loader: DataLoader = None,
+        evaluate_step: int = 1,
     ):
         if self.evaluate_metric in ["rmse", "mse", "mae"]:
             best_result = float("inf")
@@ -554,7 +673,7 @@ class Trainer(object):
 
             pbar.close()
 
-    def eval(self, data_loader):
+    def eval(self, data_loader: DataLoader):
         reg_preds = []
         reg_truths = []
         cls_preds = []
@@ -690,7 +809,7 @@ class Trainer(object):
 
         return eval_result
 
-    def pred(self, model, data_loader, store_interpret=True):
+    def pred(self, model: nn.Module, data_loader: DataLoader, store_interpret=True):
         reg_preds = []
         reg_truths = []
         cls_preds = []
@@ -881,116 +1000,3 @@ class Trainer(object):
         coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
 
         return self.min_lrate + coeff * (self.lrate - self.min_lrate)
-
-
-def masked_mse_loss(pred, true):
-    mask = ~torch.isnan(true)
-    pred = torch.masked_select(pred, mask)
-    true = torch.masked_select(true, mask)
-    mse_val = torch.mean((true - pred) ** 2)
-
-    return mse_val
-
-
-def store_attention_result(attention_dict, keys, reg_tuples=None, cls_tuples=None):
-    interpret_dict = {}
-
-    unbatched_residue_score = unbatch(
-        attention_dict["residue_final_score"], attention_dict["protein_residue_index"]
-    )
-    unbatched_atom_score = unbatch(
-        attention_dict["atom_final_score"], attention_dict["drug_atom_index"]
-    )
-
-    unbatched_residue_layer_score = unbatch(
-        attention_dict["residue_layer_scores"], attention_dict["protein_residue_index"]
-    )
-    unbatched_clique_layer_score = unbatch(
-        attention_dict["clique_layer_scores"], attention_dict["drug_clique_index"]
-    )
-
-    for idx, key in enumerate(keys):
-        interpret_dict[key] = {
-            "residue_score": unbatched_residue_score[idx].detach().cpu().numpy(),
-            "atom_score": unbatched_atom_score[idx].detach().cpu().numpy(),
-            "residue_layer": unbatched_residue_layer_score[idx].detach().cpu().numpy(),
-            "clique_layer": unbatched_clique_layer_score[idx].detach().cpu().numpy(),
-            "mol_feature": attention_dict["mol_feature"][idx].detach().cpu().numpy(),
-            "prot_feature": attention_dict["prot_feature"][idx].detach().cpu().numpy(),
-            "interaction_fingerprint": attention_dict["interaction_fingerprint"][idx]
-            .detach()
-            .cpu()
-            .numpy(),
-        }
-        if cls_tuples:
-            interpret_dict[key]["classification_truth"] = cls_tuples[idx][0].item()
-            interpret_dict[key]["classification_prediction"] = cls_tuples[idx][1].item()
-        if reg_tuples:
-            interpret_dict[key]["regression_truth"] = reg_tuples[idx][0].item()
-            interpret_dict[key]["regression_prediction"] = reg_tuples[idx][1].item()
-
-    return interpret_dict
-
-
-def missing_mse_loss(pred, true, threshold=5.000):
-    loss = torch.tensor(0.0).to(pred.device)
-
-    ## true labels available
-    if (~torch.isnan(true)).any():
-        real_mask = ~torch.isnan(true)
-        real_pred = torch.masked_select(pred, real_mask)
-        real_true = torch.masked_select(true, real_mask)
-        loss += torch.mean((real_true - real_pred) ** 2)
-
-    # ## missing labels
-    # if torch.isnan(true).any():
-    #     miss_mask = torch.isnan(true)
-    #     miss_pred = torch.masked_select(pred, miss_mask)
-    #     miss_diff = (miss_pred - threshold).relu()
-    #     loss += torch.mean(miss_diff**2)
-
-    return loss
-
-
-def missing_ce_loss(pred, true, negative_cls=1):
-    mclass_criterion = torch.nn.CrossEntropyLoss()
-    negative_class_criterion = torch.nn.BCELoss()
-    loss = torch.tensor(0.0).to(pred.device)
-    counter = 0
-
-    if (~torch.isnan(true)).any():
-        real_mask = ~torch.isnan(true)
-        real_pred = pred[real_mask]
-        real_true = true[real_mask]
-
-        ## unknown
-        unknown_mask = torch.where(real_true == 1000)[0]
-        unknown_pred = real_pred[unknown_mask]
-        if len(unknown_pred) > 0:
-            unknown_pred = unknown_pred.softmax(dim=-1)
-            ## take binder class (agonist and antagonist) only ##
-            positive_cls = torch.ones(unknown_pred.shape[-1]).bool()
-            positive_cls[negative_cls] = False
-            positive_cls = positive_cls.to(pred.device)
-            unknown_pred = unknown_pred[:, positive_cls].sum(dim=-1)
-            ## take binder class (agonist and antagonist) only ##
-            unknown_true = (
-                torch.ones(unknown_pred.size(0)).float().to(pred.device)
-            )  ## all of them are positives
-            unknown_pred = torch.where(
-                torch.isnan(unknown_pred), torch.zeros_like(unknown_pred), unknown_pred
-            ).clamp(0, 1)
-
-            loss += negative_class_criterion(unknown_pred, unknown_true)
-            counter += 1
-
-        ## known values
-        known_mask = torch.where(real_true != 1000)[0]
-        known_pred = real_pred[known_mask]
-        known_true = real_true[known_mask]
-        if len(known_pred) > 0:
-            known_true = known_true.long()
-            loss += mclass_criterion(known_pred, known_true)
-            counter += 1
-
-    return loss
