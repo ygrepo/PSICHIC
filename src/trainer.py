@@ -570,13 +570,21 @@ class Trainer(object):
                         train_mcls_loss = running_mcls_loss / evaluate_step
                         train_ortho_loss = running_ortho_loss / evaluate_step
                         train_cluster_loss = running_cluster_loss / evaluate_step
-                        train_str1 = f"Train MSE Loss: {train_reg_loss:.4f}, Train CLS Loss: {train_cls_loss:.4f}, Train MCLS Loss: {train_mcls_loss:.4f}"
-                        train_str2 = f"Protein Cluster Region Loss - Ortho Loss: {train_ortho_loss:.4f}, Cluster Loss: {train_cluster_loss:.4f}"
+                        train_str1 = (
+                            f"Train MSE Loss: {train_reg_loss:.4f}, "
+                            f"Train CLS Loss: {train_cls_loss:.4f}, "
+                            f"Train MCLS Loss: {train_mcls_loss:.4f}"
+                        )
+                        train_str2 = (
+                            f"Protein Cluster Region Loss - "
+                            f"Ortho Loss: {train_ortho_loss:.4f}, "
+                            f"Cluster Loss: {train_cluster_loss:.4f}"
+                        )
 
                         if val_loader is not None:
                             val_result = self.eval(val_loader)
                             val_result = {k: round(v, 4) for k, v in val_result.items()}
-                            val_str = f"Validation Results: " + json.dumps(
+                            val_str = "Validation Results: " + json.dumps(
                                 val_result, indent=4, sort_keys=True
                             )
 
@@ -644,7 +652,7 @@ class Trainer(object):
                                 )
 
                         test_result = {k: round(v, 4) for k, v in test_result.items()}
-                        test_str = f"Test Results: " + json.dumps(
+                        test_str = "Test Results: " + json.dumps(
                             test_result, indent=4, sort_keys=True
                         )
 
