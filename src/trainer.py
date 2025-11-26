@@ -5,6 +5,7 @@ import math
 import sys
 from pathlib import Path
 from torch_geometric.loader import DataLoader
+from datetime import datetime
 
 from tqdm import tqdm
 from reprint import output
@@ -358,9 +359,13 @@ class Trainer(object):
 
                     if better_than_previous:
                         best_result = val_result[self.evaluate_metric]
-                        dn = self.result_path / "save_model_seed{}".format(self.runid)
-                        dn.mkdir(parents=True, exist_ok=True)
-                        fn = dn / "model.pt"
+                        # Get current timestamp
+                        timestamp = datetime.now()
+                        year = timestamp.year
+                        day_of_year = (
+                            timestamp.timetuple().tm_yday
+                        )  # Day of year (1-366)
+                        fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
                         torch.save(
                             self.model.state_dict(),
                             fn,
@@ -389,9 +394,13 @@ class Trainer(object):
                             better_than_previous = False
 
                     if better_than_previous:
-                        dn = self.result_path / "save_model_seed{}".format(self.runid)
-                        dn.mkdir(parents=True, exist_ok=True)
-                        fn = dn / "model.pt"
+                        # Get current timestamp
+                        timestamp = datetime.now()
+                        year = timestamp.year
+                        day_of_year = (
+                            timestamp.timetuple().tm_yday
+                        )  # Day of year (1-366)
+                        fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
                         torch.save(
                             self.model.state_dict(),
                             fn,
@@ -414,8 +423,11 @@ class Trainer(object):
                 output_lines[8] = val_str
                 output_lines[9] = " " * 30
                 output_lines[10] = test_str
-
-                fn = self.result_path / "full_result-{}.txt".format(self.runid)
+                # Get current timestamp
+                timestamp = datetime.now()
+                year = timestamp.year
+                day_of_year = timestamp.timetuple().tm_yday  # Day of year (1-366)
+                fn = self.result_path / f"{year}_{day_of_year:03d}_full_result.txt"
                 with open(fn, "a+") as f:
                     f.write(
                         "-" * 30
@@ -581,11 +593,15 @@ class Trainer(object):
 
                             if better_than_previous:
                                 best_result = val_result[self.evaluate_metric]
-                                dn = self.result_path / "save_model_seed{}".format(
-                                    self.runid
+                                timestamp = datetime.now()
+                                year = timestamp.year
+                                day_of_year = (
+                                    timestamp.timetuple().tm_yday
+                                )  # Day of year (1-366)
+                                fn = (
+                                    self.result_path
+                                    / f"{year}_{day_of_year:03d}_model.pt"
                                 )
-                                dn.mkdir(parents=True, exist_ok=True)
-                                fn = dn / "model.pt"
                                 torch.save(
                                     self.model.state_dict(),
                                     fn,
@@ -613,11 +629,15 @@ class Trainer(object):
 
                             if better_than_previous:
                                 best_result = test_result[self.evaluate_metric]
-                                dn = self.result_path / "save_model_seed{}".format(
-                                    self.runid
+                                timestamp = datetime.now()
+                                year = timestamp.year
+                                day_of_year = (
+                                    timestamp.timetuple().tm_yday
+                                )  # Day of year (1-366)
+                                fn = (
+                                    self.result_path
+                                    / f"{year}_{day_of_year:03d}_model.pt"
                                 )
-                                dn.mkdir(parents=True, exist_ok=True)
-                                fn = dn / "model.pt"
                                 torch.save(
                                     self.model.state_dict(),
                                     fn,
@@ -642,7 +662,15 @@ class Trainer(object):
                         output_lines[9] = " " * 30
                         output_lines[10] = test_str
 
-                        fn = self.result_path / "full_result-{}.txt".format(self.runid)
+                         timestamp = datetime.now()
+                        year = timestamp.year
+                        day_of_year = (
+                            timestamp.timetuple().tm_yday
+                        )  # Day of year (1-366)
+                        fn = (
+                            self.result_path
+                            / f"{year}_{day_of_year:03d}_full_result.txt"
+                        )
                         with open(fn, "a+") as f:
                             f.write(
                                 "-" * 30
