@@ -4,6 +4,7 @@ import math
 import os
 import sys
 from pathlib import Path
+from torch_geometric.loader import DataLoader
 
 from tqdm import tqdm
 from reprint import output
