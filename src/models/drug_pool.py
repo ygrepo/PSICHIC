@@ -36,7 +36,7 @@ class MotifPool(torch.nn.Module):
         atom2clique_index: Tuple[Tensor, Tensor],
         clique_batch: Tensor,
         clique_edge_index: Tuple[Tensor, Tensor],
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         row, col = atom2clique_index
         H = self.heads
         C = self.hidden_dim
