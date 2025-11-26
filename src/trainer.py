@@ -366,6 +366,7 @@ class Trainer(object):
                             timestamp.timetuple().tm_yday
                         )  # Day of year (1-366)
                         fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
+                        logger.info(f"Saving model to: {fn}")
                         torch.save(
                             self.model.state_dict(),
                             fn,
@@ -401,6 +402,7 @@ class Trainer(object):
                             timestamp.timetuple().tm_yday
                         )  # Day of year (1-366)
                         fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
+                        logger.info(f"Saving model to: {fn}")
                         torch.save(
                             self.model.state_dict(),
                             fn,
@@ -610,6 +612,7 @@ class Trainer(object):
                                     self.result_path
                                     / f"{year}_{day_of_year:03d}_model.pt"
                                 )
+                                logger.info(f"Saving model to: {fn}")
                                 torch.save(
                                     self.model.state_dict(),
                                     fn,
@@ -646,6 +649,7 @@ class Trainer(object):
                                     self.result_path
                                     / f"{year}_{day_of_year:03d}_model.pt"
                                 )
+                                logger.info(f"Saving model to: {fn}")
                                 torch.save(
                                     self.model.state_dict(),
                                     fn,
