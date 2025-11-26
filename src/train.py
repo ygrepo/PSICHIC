@@ -231,10 +231,8 @@ def load_and_merge_config(
 
 def setup_environment(
     seed: int,
-    model_path: Path,
-    interpret_path: Path,
     device: str,
-) -> tuple[torch.device, Path, Path]:
+) -> torch.device:
     """Sets random seeds, and sets device."""
 
     # Set random seeds
@@ -256,7 +254,7 @@ def setup_environment(
     logger.info(f"Set seed to {seed}")
     logger.info(f"Using device: {device}")
 
-    return device, model_path, interpret_path
+    return device
 
 
 # --- Data Loading Functions ---
@@ -539,7 +537,6 @@ def initialize_trainer(
     train_loader: DataLoader,
     total_iters: int,
     epochs: int,
-    args: argparse.Namespace,
     device: str,
     model_path: Path,
     result_path: Path,
@@ -582,7 +579,7 @@ def initialize_trainer(
         classification_weight=classification_weight,
         multiclassification_weight=multiclassification_weight,
         evaluate_metric=evaluation_metric,
-        result_path=str(result_path),
+        result_path=result_path,
         runid=seed,
         finetune_modules=finetune_modules,
         device=device,
@@ -701,11 +698,7 @@ def main():
             args.classification_task,
             args.mclassification_task,
         )
-        model_path = args.model_path.resolve()
-        interpret_path = args.interpret_path.resolve()
-        device, model_path, interpret_path = setup_environment(
-            args.seed, model_path, interpret_path, args.device
-        )
+        device = setup_environment(args.seed, args.device)
 
         # Load Data
         datafolder = args.datafolder.resolve()
@@ -727,6 +720,7 @@ def main():
             f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
         )
         # Initialize Model and Trainer
+        model_path = args.model_path.resolve()
         mol_deg, _, prot_deg = get_pna_degrees(
             trained_model_path, datafolder, train_loader, model_path
         )
@@ -737,7 +731,6 @@ def main():
             train_loader,
             total_iters,
             epochs,
-            args,
             device,
             model_path,
             args.result_path,
@@ -757,6 +750,7 @@ def main():
         )
 
         # Run Final Evaluation
+        interpret_path = args.interpret_path.resolve()
         run_evaluation(
             model, model_path, test_df, test_loader, interpret_path, ligand_dict, args
         )

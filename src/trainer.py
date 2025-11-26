@@ -2,19 +2,20 @@ import torch
 from torch import nn
 import json
 import math
-import os
 import sys
 from pathlib import Path
 from torch_geometric.loader import DataLoader
 
 from tqdm import tqdm
 from reprint import output
+from torch import nn
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
 from src.utils import get_logger
 from src.model_utils import unbatch
+from src.models.net import net
 from src.metrics import evaluate_cls, evaluate_mcls, evaluate_reg
 
 logger = get_logger(__name__)
@@ -136,29 +137,29 @@ def missing_ce_loss(pred, true, negative_cls=1):
 class Trainer(object):
     def __init__(
         self,
-        model,
-        lrate,
-        min_lrate,
-        wdecay,
-        betas,
-        eps,
-        amsgrad,
-        clip,
-        steps_per_epoch,
-        num_epochs,
-        total_iters,
-        warmup_iters=2000,
-        lr_decay_iters=None,
-        schedule_lr=True,
-        regression_weight=1,
-        classification_weight=1,
-        multiclassification_weight=1,
-        evaluate_metric="rmse",
-        result_path="",
-        runid=0,
-        device="cuda:0",
-        skip_test_during_train=False,
-        finetune_modules=None,
+        model: net,
+        lrate: float,
+        min_lrate: float,
+        wdecay: float,
+        betas: list[float],
+        eps: float,
+        amsgrad: bool,
+        clip: float,
+        steps_per_epoch: int,
+        num_epochs: int,
+        total_iters: int,
+        result_path: Path,
+        warmup_iters: int = 2000,
+        lr_decay_iters: int | None = None,
+        schedule_lr: bool = True,
+        regression_weight: float = 1,
+        classification_weight: float = 1,
+        multiclassification_weight: float = 1,
+        evaluate_metric: str = "rmse",
+        runid: int = 0,
+        device: str = "cuda:0",
+        skip_test_during_train: bool = False,
+        finetune_modules: list[str] | None = None,
     ):
 
         self.model = model
@@ -233,7 +234,6 @@ class Trainer(object):
                 running_reg_loss = 0
                 running_cls_loss = 0
                 running_mcls_loss = 0
-                running_spectral_loss = 0
                 running_ortho_loss = 0
                 running_cluster_loss = 0
                 self.model.train()
@@ -325,7 +325,6 @@ class Trainer(object):
                     running_cls_loss += cls_loss
                     running_mcls_loss += mcls_loss
 
-                    running_spectral_loss += sp_loss
                     running_ortho_loss += o_loss
                     running_cluster_loss += cl_loss
                     pbar.update(1)
@@ -359,13 +358,12 @@ class Trainer(object):
 
                     if better_than_previous:
                         best_result = val_result[self.evaluate_metric]
+                        dn = self.result_path / "save_model_seed{}".format(self.runid)
+                        dn.mkdir(parents=True, exist_ok=True)
+                        fn = dn / "model.pt"
                         torch.save(
                             self.model.state_dict(),
-                            os.path.join(
-                                self.result_path,
-                                "save_model_seed{}".format(self.runid),
-                                "model.pt",
-                            ),
+                            fn,
                         )
 
                         if self.skip_test_during_train is False:
@@ -391,13 +389,12 @@ class Trainer(object):
                             better_than_previous = False
 
                     if better_than_previous:
+                        dn = self.result_path / "save_model_seed{}".format(self.runid)
+                        dn.mkdir(parents=True, exist_ok=True)
+                        fn = dn / "model.pt"
                         torch.save(
                             self.model.state_dict(),
-                            os.path.join(
-                                self.result_path,
-                                "save_model_seed{}".format(self.runid),
-                                "model.pt",
-                            ),
+                            fn,
                         )
 
                 test_result = {k: round(v, 4) for k, v in test_result.items()}
@@ -418,9 +415,8 @@ class Trainer(object):
                 output_lines[9] = " " * 30
                 output_lines[10] = test_str
 
-                with open(
-                    self.result_path + "/full_result-{}.txt".format(self.runid), "a+"
-                ) as f:
+                fn = self.result_path / "full_result-{}.txt".format(self.runid)
+                with open(fn, "a+") as f:
                     f.write(
                         "-" * 30
                         + f"\nEpoch: {epoch:03d} - Model Results\n"
@@ -446,7 +442,6 @@ class Trainer(object):
         running_reg_loss = 0
         running_cls_loss = 0
         running_mcls_loss = 0
-        running_spectral_loss = 0
         running_ortho_loss = 0
         running_cluster_loss = 0
         iter_num = 0
@@ -550,7 +545,6 @@ class Trainer(object):
                     running_reg_loss += reg_loss
                     running_cls_loss += cls_loss
                     running_mcls_loss += mcls_loss
-                    running_spectral_loss += sp_loss
                     running_ortho_loss += o_loss
                     running_cluster_loss += cl_loss
                     pbar.update(1)
@@ -562,7 +556,6 @@ class Trainer(object):
                         train_reg_loss = running_reg_loss / evaluate_step
                         train_cls_loss = running_cls_loss / evaluate_step
                         train_mcls_loss = running_mcls_loss / evaluate_step
-                        train_spectral_loss = running_spectral_loss / evaluate_step
                         train_ortho_loss = running_ortho_loss / evaluate_step
                         train_cluster_loss = running_cluster_loss / evaluate_step
                         train_str1 = f"Train MSE Loss: {train_reg_loss:.4f}, Train CLS Loss: {train_cls_loss:.4f}, Train MCLS Loss: {train_mcls_loss:.4f}"
@@ -588,13 +581,14 @@ class Trainer(object):
 
                             if better_than_previous:
                                 best_result = val_result[self.evaluate_metric]
+                                dn = self.result_path / "save_model_seed{}".format(
+                                    self.runid
+                                )
+                                dn.mkdir(parents=True, exist_ok=True)
+                                fn = dn / "model.pt"
                                 torch.save(
                                     self.model.state_dict(),
-                                    os.path.join(
-                                        self.result_path,
-                                        "save_model_seed{}".format(self.runid),
-                                        "model.pt",
-                                    ),
+                                    fn,
                                 )
 
                                 if self.skip_test_during_train is False:
@@ -619,13 +613,14 @@ class Trainer(object):
 
                             if better_than_previous:
                                 best_result = test_result[self.evaluate_metric]
+                                dn = self.result_path / "save_model_seed{}".format(
+                                    self.runid
+                                )
+                                dn.mkdir(parents=True, exist_ok=True)
+                                fn = dn / "model.pt"
                                 torch.save(
                                     self.model.state_dict(),
-                                    os.path.join(
-                                        self.result_path,
-                                        "save_model_seed{}".format(self.runid),
-                                        "model.pt".format(iter_num),
-                                    ),
+                                    fn,
                                 )
 
                         test_result = {k: round(v, 4) for k, v in test_result.items()}
@@ -647,10 +642,8 @@ class Trainer(object):
                         output_lines[9] = " " * 30
                         output_lines[10] = test_str
 
-                        with open(
-                            self.result_path + "/full_result-{}.txt".format(self.runid),
-                            "a+",
-                        ) as f:
+                        fn = self.result_path / "full_result-{}.txt".format(self.runid)
+                        with open(fn, "a+") as f:
                             f.write(
                                 "-" * 30
                                 + f"\nTraining Step: {iter_num} - Model Results\n"
@@ -666,7 +659,6 @@ class Trainer(object):
                         running_reg_loss = 0
                         running_cls_loss = 0
                         running_mcls_loss = 0
-                        running_spectral_loss = 0
                         running_ortho_loss = 0
                         running_cluster_loss = 0
                         self.model.train()
