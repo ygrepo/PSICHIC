@@ -641,8 +641,12 @@ def run_evaluation(
     logger.info("Loading best checkpoint and predicting test data")
     logger.info("-" * 50)
 
-    best_model_file = os.path.join(model_path, "model.pt")
-    model.load_state_dict(torch.load(best_model_file, map_location=device))
+    timestamp = datetime.now()
+    year = timestamp.year
+    month = timestamp.month  # Month (1-12)
+    day = timestamp.day  # Day of the month (1-31)
+    fn = model_path / f"{year}_{month:02d}_{day:02d}_model.pt"
+    model.load_state_dict(torch.load(fn, map_location=device))
 
     screen_df = virtual_screening(
         test_df,

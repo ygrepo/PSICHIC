@@ -191,7 +191,7 @@ class InfiniteDataLoader(DataLoader):
         return batch
 
 
-def create_custom_loader(type="epoch"):
+def create_custom_loader(type: str = "epoch") -> DataLoader:
     if type == "epoch":
         return DataLoader
     elif type == "infinite":
@@ -268,15 +268,10 @@ def unbatch_nodes(
     return [data_tensor[index_tensor == i] for i in index_tensor.unique()]
 
 
-def repeater(data_loader: DataLoader):
+def repeater(data_loader: DataLoader) -> DataLoader:
     for loader in repeat(data_loader):
         for data in loader:
             yield data
-
-
-# def printline(line):
-#     sys.stdout.write(line + "\x1b[K\r")
-#     sys.stdout.flush()
 
 
 def protein_degree_from_dict(protein_dict: dict[str, dict]) -> torch.Tensor:
@@ -348,7 +343,9 @@ def percentile_rank(arr: np.ndarray) -> np.ndarray:
     return np.argsort(np.argsort(arr)) / (len(arr) - 1)
 
 
-def store_ligand_score(ligand_smiles, atom_types, atom_scores, ligand_path):
+def store_ligand_score(
+    ligand_smiles: str, atom_types: list, atom_scores: list, ligand_path: Path
+) -> bool:
     # Create a molecule from a SMILES string
     mol = Chem.MolFromSmiles(ligand_smiles)
     # Add an atom-level property to the first atom
