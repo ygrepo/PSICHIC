@@ -591,11 +591,11 @@ def virtual_screening(
                 attention_dict,
                 interaction_keys,
                 ligand_dict,
+                result_path,
                 reg_pred,
                 cls_pred,
                 mcls_pred,
-                result_path=result_path,
-                save_interpret=save_interpret,
+                save_interpret,
             )
 
     return screen_df
