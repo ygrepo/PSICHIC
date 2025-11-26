@@ -488,12 +488,10 @@ def store_result(
                             unbatched_cluster_s2[idx][:, ci].cpu().flatten().numpy()
                         )
 
-                protein_interpret.to_csv(
-                    os.path.join(pair_path, "protein.csv"), index=False
-                )
+                protein_interpret.to_csv(pair_path / "protein.csv", index=False)
 
                 ## STORE Ligand Interpretation
-                ligand_path = os.path.join(pair_path, "ligand.pkl")
+                ligand_path = pair_path / "ligand.pkl"
 
                 successful_ligand = store_ligand_score(
                     key[1],
@@ -507,7 +505,7 @@ def store_result(
                     )
                 ## STORE Fingerprint
                 np.save(
-                    os.path.join(pair_path, "fingerprint.npy"),
+                    pair_path / "fingerprint.npy",
                     attention_dict["interaction_fingerprint"][idx]
                     .detach()
                     .cpu()
@@ -520,7 +518,7 @@ def virtual_screening(
     screen_df: pd.DataFrame | str,
     model: net,
     data_loader: DataLoader,
-    result_path: str,
+    result_path: Path,
     save_interpret: bool = True,
     ligand_dict: dict = None,
     device: str = "cpu",

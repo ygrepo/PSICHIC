@@ -362,10 +362,9 @@ class Trainer(object):
                         # Get current timestamp
                         timestamp = datetime.now()
                         year = timestamp.year
-                        day_of_year = (
-                            timestamp.timetuple().tm_yday
-                        )  # Day of year (1-366)
-                        fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
+                        month = timestamp.month  # Month (1-12)
+                        day = timestamp.day  # Day of the month (1-31)
+                        fn = self.result_path / f"{year}_{month:02d}_{day:02d}_model.pt"
                         logger.info(f"Saving model to: {fn}")
                         torch.save(
                             self.model.state_dict(),
@@ -398,10 +397,9 @@ class Trainer(object):
                         # Get current timestamp
                         timestamp = datetime.now()
                         year = timestamp.year
-                        day_of_year = (
-                            timestamp.timetuple().tm_yday
-                        )  # Day of year (1-366)
-                        fn = self.result_path / f"{year}_{day_of_year:03d}_model.pt"
+                        month = timestamp.month  # Month (1-12)
+                        day = timestamp.day  # Day of the month (1-31)
+                        fn = self.result_path / f"{year}_{month:02d}_{day:02d}_model.pt"
                         logger.info(f"Saving model to: {fn}")
                         torch.save(
                             self.model.state_dict(),
@@ -428,8 +426,9 @@ class Trainer(object):
                 # Get current timestamp
                 timestamp = datetime.now()
                 year = timestamp.year
-                day_of_year = timestamp.timetuple().tm_yday  # Day of year (1-366)
-                fn = self.result_path / f"{year}_{day_of_year:03d}_full_result.txt"
+                month = timestamp.month  # Month (1-12)
+                day = timestamp.day  # Day of the month (1-31)
+                fn = self.result_path / f"{year}_{month:02d}_{day:02d}_full_result.txt"
                 with open(fn, "a+") as f:
                     f.write(
                         "-" * 30
@@ -605,12 +604,11 @@ class Trainer(object):
                                 best_result = val_result[self.evaluate_metric]
                                 timestamp = datetime.now()
                                 year = timestamp.year
-                                day_of_year = (
-                                    timestamp.timetuple().tm_yday
-                                )  # Day of year (1-366)
+                                month = timestamp.month  # Month (1-12)
+                                day = timestamp.day  # Day of the month (1-31)
                                 fn = (
                                     self.result_path
-                                    / f"{year}_{day_of_year:03d}_model.pt"
+                                    / f"{year}_{month:02d}_{day:02d}_model.pt"
                                 )
                                 logger.info(f"Saving model to: {fn}")
                                 torch.save(
@@ -642,12 +640,11 @@ class Trainer(object):
                                 best_result = test_result[self.evaluate_metric]
                                 timestamp = datetime.now()
                                 year = timestamp.year
-                                day_of_year = (
-                                    timestamp.timetuple().tm_yday
-                                )  # Day of year (1-366)
+                                month = timestamp.month  # Month (1-12)
+                                day = timestamp.day  # Day of the month (1-31)
                                 fn = (
                                     self.result_path
-                                    / f"{year}_{day_of_year:03d}_model.pt"
+                                    / f"{year}_{month:02d}_{day:02d}_model.pt"
                                 )
                                 logger.info(f"Saving model to: {fn}")
                                 torch.save(
@@ -676,12 +673,11 @@ class Trainer(object):
 
                         timestamp = datetime.now()
                         year = timestamp.year
-                        day_of_year = (
-                            timestamp.timetuple().tm_yday
-                        )  # Day of year (1-366)
+                        month = timestamp.month  # Month (1-12)
+                        day = timestamp.day  # Day of the month (1-31)
                         fn = (
                             self.result_path
-                            / f"{year}_{day_of_year:03d}_full_result.txt"
+                            / f"{year}_{month:02d}_{day:02d}_full_result.txt"
                         )
                         with open(fn, "a+") as f:
                             f.write(

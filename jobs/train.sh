@@ -77,7 +77,7 @@ RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
 mkdir -p "${MODEL_PATH}"
-INTERPRET_PATH="${RESULT_PATH}/interpretation_result"
+#INTERPRET_PATH="${RESULT_PATH}/interpretation_result"
 REGRESSION_TASK=True
 CLASSIFICATION_TASK=False
 MCLASSIFICATION_TASK=0
@@ -102,7 +102,6 @@ echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"
 echo "Result path: ${RESULT_PATH}"
 echo "Model path: ${MODEL_PATH}"
-echo "Interpret path: ${INTERPRET_PATH}"
 echo "Regression task: ${REGRESSION_TASK}"
 echo "Classification task: ${CLASSIFICATION_TASK}"
 echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
@@ -127,7 +126,6 @@ set +e
   --config_path "${CONFIG_PATH}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
-  --interpret_path "${INTERPRET_PATH}" \
   --save_interpret "${SAVE_INTERPRET}" \
   --regression_task "${REGRESSION_TASK}" \
   --classification_task "${CLASSIFICATION_TASK}" \

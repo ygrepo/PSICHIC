@@ -8,6 +8,7 @@ import argparse
 import ast
 from pathlib import Path
 import sys
+from datetime import datetime
 from torch_geometric.loader import DataLoader
 
 
@@ -95,7 +96,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--interpret_path",
         type=Path,
-        default="",
+        default=None,
         help="Path to save interpretation results",
     )
     parser.add_argument(
@@ -627,28 +628,38 @@ def run_training(
 
 
 def run_evaluation(
-    model, model_path, test_df, test_loader, interpret_path, ligand_dict, args
+    model: net,
+    model_path: Path,
+    test_df: pd.DataFrame,
+    test_loader: DataLoader,
+    interpret_path: Path,
+    device: str,
+    save_interpret: bool,
+    ligand_dict: dict,
 ):
     """Loads the best model and runs final evaluation/screening."""
     logger.info("Loading best checkpoint and predicting test data")
     logger.info("-" * 50)
 
     best_model_file = os.path.join(model_path, "model.pt")
-    model.load_state_dict(torch.load(best_model_file, map_location=args.device))
+    model.load_state_dict(torch.load(best_model_file, map_location=device))
 
     screen_df = virtual_screening(
         test_df,
         model,
         test_loader,
         result_path=interpret_path,
-        save_interpret=args.save_interpret,
+        save_interpret=save_interpret,
         ligand_dict=ligand_dict,
-        device=args.device,
+        device=device,
     )
-
-    pred_file = os.path.join(args.result_path, f"test_prediction_seed{args.seed}.csv")
-    screen_df.to_csv(pred_file, index=False)
-    logger.info(f"Test predictions saved to: {pred_file}")
+    timestamp = datetime.now()
+    year = timestamp.year
+    month = timestamp.month  # Month (1-12)
+    day = timestamp.day  # Day of the month (1-31)
+    fn = model_path / f"{year}_{month:02d}_{day:02d}_test_prediction.csv"
+    screen_df.to_csv(fn, index=False)
+    logger.info(f"Test predictions saved to: {fn}")
 
 
 def main():
@@ -667,6 +678,13 @@ def main():
         else:
             trained_model_path = trained_model_path.resolve()
         logger.info(f"Trained model path: {trained_model_path}")
+        model_path = args.model_path.resolve()
+        logger.info(f"Model path: {model_path}")
+        if args.interpret_path is None:
+            interpret_path = model_path
+        else:
+            interpret_path = args.interpret_path.resolve()
+        logger.info(f"Interpret path: {interpret_path}")
         logger.info(f"Learning rate: {args.lrate}")
         logger.info(f"Number of rows to load: {args.n}")
         logger.info(f"Batch size: {args.batch_size}")
@@ -719,7 +737,6 @@ def main():
             f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
         )
         # Initialize Model and Trainer
-        model_path = args.model_path.resolve()
         mol_deg, _, prot_deg = get_pna_degrees(
             trained_model_path, datafolder, train_loader, model_path
         )
@@ -748,9 +765,15 @@ def main():
         )
 
         # Run Final Evaluation
-        interpret_path = args.interpret_path.resolve()
         run_evaluation(
-            model, model_path, test_df, test_loader, interpret_path, ligand_dict, args
+            model,
+            model_path,
+            test_df,
+            test_loader,
+            interpret_path,
+            device,
+            args.save_interpret,
+            ligand_dict,
         )
 
     except Exception as e:
