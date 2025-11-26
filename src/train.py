@@ -637,7 +637,6 @@ def run_evaluation(
 
 def main():
     """Main execution flow."""
-    # 1. Setup
     args = parse_args()
     try:
         setup_logging(args.log_fn, args.log_level)
@@ -667,7 +666,10 @@ def main():
         logger.info(f"Notebook mode: {args.nb_mode}")
         logger.info(f"Device: {args.device}")
 
-        trained_model_path = args.trained_model_path
+        if str(args.trained_model_path) == ".":
+            trained_model_path = None
+        else:
+            trained_model_path = args.trained_model_path.resolve()
         config_path = args.config_path.resolve()
         config = load_and_merge_config(
             trained_model_path,
@@ -685,7 +687,7 @@ def main():
             args.seed, model_path, interpret_path, args.device
         )
 
-        # 2. Load Data
+        # Load Data
         datafolder = args.datafolder.resolve()
         train_df, test_df, valid_df = load_dataframes(datafolder, args.n)
         protein_dict, ligand_dict = load_or_init_graphs(
@@ -702,8 +704,8 @@ def main():
             args.batch_size,
         )
 
-        # 3. Initialize Model and Trainer
-        mol_deg, clique_deg, prot_deg = get_pna_degrees(
+        # Initialize Model and Trainer
+        mol_deg, _, prot_deg = get_pna_degrees(
             trained_model_path, datafolder, train_loader, model_path
         )
         model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
@@ -711,10 +713,10 @@ def main():
             model, config, train_loader, total_iters, epochs, args, device, model_path
         )
 
-        # 4. Run Training
+        # Run Training
         run_training(engine, train_loader, valid_loader, test_loader, args)
 
-        # 5. Run Final Evaluation
+        # Run Final Evaluation
         run_evaluation(
             model, model_path, test_df, test_loader, interpret_path, ligand_dict, args
         )
