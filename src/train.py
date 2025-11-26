@@ -645,7 +645,12 @@ def main():
         logger.info(f"Data folder: {args.datafolder}")
         logger.info(f"Result path: {args.result_path}")
         logger.info(f"Config path: {args.config_path}")
-        logger.info(f"Trained model path: {args.trained_model_path}")
+        trained_model_path = args.trained_model_path
+        if trained_model_path is None or str(trained_model_path) == ".":
+            trained_model_path = None
+        else:
+            trained_model_path = trained_model_path.resolve()
+        logger.info(f"Trained model path: {trained_model_path}")
         logger.info(f"Learning rate: {args.lrate}")
         logger.info(f"Number of rows to load: {args.n}")
         logger.info(f"Batch size: {args.batch_size}")
@@ -665,11 +670,6 @@ def main():
         logger.info(f"Finetune modules: {args.finetune_modules}")
         logger.info(f"Notebook mode: {args.nb_mode}")
         logger.info(f"Device: {args.device}")
-
-        if str(args.trained_model_path) == ".":
-            trained_model_path = None
-        else:
-            trained_model_path = args.trained_model_path.resolve()
         config_path = args.config_path.resolve()
         config = load_and_merge_config(
             trained_model_path,
