@@ -724,9 +724,12 @@ def main():
         # Load Data
         datafolder = args.datafolder.resolve()
         train_df, test_df, valid_df = load_dataframes(datafolder, args.n)
-        # protein_dict, ligand_dict = load_or_init_graphs(
-        #     datafolder, train_df, test_df, valid_df
-        # )
+        logger.info(
+            f"Data loaded. Train: {len(train_df)}-{len(test_df)}-{len(valid_df)}"
+        )
+        protein_dict, ligand_dict = load_or_init_graphs(
+            datafolder, train_df, test_df, valid_df
+        )
         # train_loader, valid_loader, test_loader = prepare_dataloaders(
         #     args.sampling_col,
         #     protein_dict,

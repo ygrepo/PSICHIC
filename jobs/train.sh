@@ -89,7 +89,7 @@ LRATE=1e-4
 EPS=1e-8
 BETAS="(0.9,0.999)"
 BATCH_SIZE=16
-N=10
+N=0
 
 #DATAFOLDER="./dataset/pdb2020"
 DATAFOLDER="./data/exp"

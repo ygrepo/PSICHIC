@@ -324,43 +324,114 @@ def seq_feature(pro_seq: str) -> np.ndarray:
 
 
 def contact_map(
-    contact_map_proba: np.ndarray, contact_threshold: float = 0.5
+    contact_map_proba: np.ndarray,
+    contact_threshold: float = 0.5,
 ) -> tuple[Tensor, Tensor]:
+    """
+    Construct a protein graph from an ESM-predicted contact probability map.
+
+    This function converts a residue–residue contact probability matrix
+    (L × L, where L is the number of residues) into a PyTorch Geometric-style
+    graph representation consisting of:
+
+        - edge_index: 2 × E tensor of residue pair indices
+        - edge_weight: E-dimensional tensor of edge strengths (contact probabilities)
+
+    The graph includes two types of edges:
+
+    1. **Predicted structural contacts**
+       Residue pairs with contact probability ≥ contact_threshold are included.
+       These edges capture long-range 3D interactions learned by the ESM model.
+
+    2. **Sequence-adjacency edges**
+       To prevent disconnected nodes (isolated residues), we add edges that
+       connect:
+           - i ↔ i+1  (backbone adjacency)
+           - i ↔ i+2  (short-range proximity)
+       This ensures the graph is fully connected even if the contact map is sparse,
+       which stabilizes downstream GNN training and message passing.
+
+    After assembling all edges, we:
+        - coalesce duplicates using max() weight aggregation
+        - enforce undirected edges
+        - remove self-loops
+        - add self-loops (with weight = 1), which many GNN layers require.
+
+    Parameters
+    ----------
+    contact_map_proba : np.ndarray
+        Square (L × L) matrix of residue–residue contact probabilities.
+    contact_threshold : float
+        Minimum probability to include a predicted contact as a graph edge.
+
+    Returns
+    -------
+    edge_index : torch.Tensor
+        Shape (2, E). Graph edges.
+    edge_weight : torch.Tensor
+        Shape (E,). Weights for each edge (contact probabilities or default seq weights).
+    """
+    # Number of residues in the sequence
     num_residues = contact_map_proba.shape[0]
+
+    # Binary adjacency matrix based on the contact threshold
     prot_contact_adj = (contact_map_proba >= contact_threshold).long()
+
+    # Extract edges where adjacency = 1
     edge_index = prot_contact_adj.nonzero(as_tuple=False).t().contiguous()
     row, col = edge_index
-    edge_weight = contact_map_proba[row, col].float()
-    ############### CONNECT ISOLATED NODES - Prevent Disconnected Residues ######################
-    seq_edge_head1 = torch.stack(
-        [torch.arange(num_residues)[:-1], (torch.arange(num_residues) + 1)[:-1]]
-    )
-    seq_edge_tail1 = torch.stack(
-        [(torch.arange(num_residues))[1:], (torch.arange(num_residues) - 1)[1:]]
-    )
+
+    # Edge weights are the raw probabilities for those contacts
+    edge_weight = torch.tensor(contact_map_proba[row, col], dtype=torch.float32)
+
+    # ----------------------------------------------------------------------
+    # CONNECT ISOLATED NODES (Sequence edges) – Level 1: i <-> i+1
+    # ----------------------------------------------------------------------
+    seq = torch.arange(num_residues)
+
+    # i -> i+1 edges
+    seq_edge_head1 = torch.stack([seq[:-1], seq[1:]])
+    # i+1 -> i edges
+    seq_edge_tail1 = torch.stack([seq[1:], seq[:-1]])
+
+    # All sequence edges receive a uniform weight = contact_threshold
     seq_edge_weight1 = (
         torch.ones(seq_edge_head1.size(1) + seq_edge_tail1.size(1)) * contact_threshold
     )
-    edge_index = torch.cat([edge_index, seq_edge_head1, seq_edge_tail1], dim=-1)
-    edge_weight = torch.cat([edge_weight, seq_edge_weight1], dim=-1)
 
-    seq_edge_head2 = torch.stack(
-        [torch.arange(num_residues)[:-2], (torch.arange(num_residues) + 2)[:-2]]
-    )
-    seq_edge_tail2 = torch.stack(
-        [(torch.arange(num_residues))[2:], (torch.arange(num_residues) - 2)[2:]]
-    )
+    # Append to graph
+    edge_index = torch.cat([edge_index, seq_edge_head1, seq_edge_tail1], dim=1)
+    edge_weight = torch.cat([edge_weight, seq_edge_weight1], dim=0)
+
+    # ----------------------------------------------------------------------
+    # CONNECT ISOLATED NODES – Level 2: i <-> i+2
+    # These help enforce short-range continuity and improve GNN propagation.
+    # ----------------------------------------------------------------------
+    seq_edge_head2 = torch.stack([seq[:-2], seq[2:]])
+    seq_edge_tail2 = torch.stack([seq[2:], seq[:-2]])
+
     seq_edge_weight2 = (
         torch.ones(seq_edge_head2.size(1) + seq_edge_tail2.size(1)) * contact_threshold
     )
-    edge_index = torch.cat([edge_index, seq_edge_head2, seq_edge_tail2], dim=-1)
-    edge_weight = torch.cat([edge_weight, seq_edge_weight2], dim=-1)
-    ############### CONNECT ISOLATED NODES - Prevent Disconnected Residues ######################
 
+    edge_index = torch.cat([edge_index, seq_edge_head2, seq_edge_tail2], dim=1)
+    edge_weight = torch.cat([edge_weight, seq_edge_weight2], dim=0)
+
+    # ----------------------------------------------------------------------
+    # FINAL GRAPH CLEANING
+    # ----------------------------------------------------------------------
+
+    # Remove duplicates; if multiple edges exist, keep the max weight
     edge_index, edge_weight = coalesce(edge_index, edge_weight, reduce="max")
+
+    # Ensure undirected graph: if i→j exists, ensure j→i exists (max weight kept)
     edge_index, edge_weight = to_undirected(edge_index, edge_weight, reduce="max")
+
+    # Remove any i→i self-loops before adding clean ones
     edge_index, edge_weight = remove_self_loops(edge_index, edge_weight)
-    edge_index, edge_weight = add_self_loops(edge_index, edge_weight, fill_value=1)
+
+    # Add self-loops required by many GNN architectures (weight = 1)
+    edge_index, edge_weight = add_self_loops(edge_index, edge_weight, fill_value=1.0)
 
     return edge_index, edge_weight
 
