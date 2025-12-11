@@ -323,6 +323,7 @@ def load_or_init_graphs(
         logger.info("Initialising Protein Sequence to Protein Graph...")
         logger.info(f"Number of unique proteins: {len(protein_seqs)}")
         protein_dict = protein_init(protein_seqs)
+        logger.info(f"Saving Protein Graph data to: {protein_path}")
         torch.save(protein_dict, protein_path)
 
     # Load or initialize ligand graphs
@@ -334,6 +335,7 @@ def load_or_init_graphs(
         logger.info("Initialising Ligand SMILES to Ligand Graph...")
         logger.info(f"Number of unique ligands: {len(ligand_smiles)}")
         ligand_dict = ligand_init(ligand_smiles)
+        logger.info(f"Saving Ligand Graph data to: {ligand_path}")
         torch.save(ligand_dict, ligand_path)
 
     torch.cuda.empty_cache()
@@ -730,58 +732,58 @@ def main():
         protein_dict, ligand_dict = load_or_init_graphs(
             datafolder, train_df, test_df, valid_df
         )
-        # train_loader, valid_loader, test_loader = prepare_dataloaders(
-        #     args.sampling_col,
-        #     protein_dict,
-        #     ligand_dict,
-        #     train_df,
-        #     test_df,
-        #     valid_df,
-        #     args.device,
-        #     args.batch_size,
-        # )
-        # logger.info(
-        #     f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
-        # )
-        # # Initialize Model and Trainer
-        # mol_deg, _, prot_deg = get_pna_degrees(
-        #     trained_model_path, datafolder, train_loader, model_path
-        # )
-        # model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
-        # engine = initialize_trainer(
-        #     model,
-        #     config,
-        #     train_loader,
-        #     total_iters,
-        #     epochs,
-        #     device,
-        #     model_path,
-        #     args.seed,
-        #     args.finetune_modules,
-        # )
+        train_loader, valid_loader, test_loader = prepare_dataloaders(
+            args.sampling_col,
+            protein_dict,
+            ligand_dict,
+            train_df,
+            test_df,
+            valid_df,
+            args.device,
+            args.batch_size,
+        )
+        logger.info(
+            f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
+        )
+        # Initialize Model and Trainer
+        mol_deg, _, prot_deg = get_pna_degrees(
+            trained_model_path, datafolder, train_loader, model_path
+        )
+        model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
+        engine = initialize_trainer(
+            model,
+            config,
+            train_loader,
+            total_iters,
+            epochs,
+            device,
+            model_path,
+            args.seed,
+            args.finetune_modules,
+        )
 
-        # # Run Training
-        # run_training(
-        #     engine,
-        #     train_loader,
-        #     valid_loader,
-        #     test_loader,
-        #     epochs,
-        #     args.evaluate_epoch,
-        #     args.evaluate_step,
-        # )
+        # Run Training
+        run_training(
+            engine,
+            train_loader,
+            valid_loader,
+            test_loader,
+            epochs,
+            args.evaluate_epoch,
+            args.evaluate_step,
+        )
 
-        # # Run Final Evaluation
-        # run_evaluation(
-        #     model,
-        #     model_path,
-        #     test_df,
-        #     test_loader,
-        #     interpret_path,
-        #     device,
-        #     args.save_interpret,
-        #     ligand_dict,
-        # )
+        # Run Final Evaluation
+        run_evaluation(
+            model,
+            model_path,
+            test_df,
+            test_loader,
+            interpret_path,
+            device,
+            args.save_interpret,
+            ligand_dict,
+        )
 
     except Exception as e:
         logger.exception("Script failed: %s", e)
