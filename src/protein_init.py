@@ -307,6 +307,9 @@ def one_of_k_encoding_unk(x, allowable_set):
 
 
 def seq_feature(pro_seq: str) -> np.ndarray:
+    #    U and B are not used in the PDB
+    #    They appear rarely (<1% of residues)
+    #    They do not occur consistently in catalytically important sites
     if "U" in pro_seq or "B" in pro_seq:
         logger.info("U or B in Sequence")
     pro_seq = pro_seq.replace("U", "X").replace("B", "X")
@@ -372,11 +375,12 @@ def esm_extract(
 ) -> tuple[Tensor, Tensor, Tensor]:
     pro_id = "A"
     if len(seq) <= 700:
+        # Tokenization and move to device
         batch_labels, batch_strs, batch_tokens = batch_converter([(pro_id, seq)])
         batch_tokens = batch_tokens.to(
             next(model.parameters()).device, non_blocking=True
         )
-
+        # Prediction
         with torch.no_grad():
             results = model(
                 batch_tokens,
@@ -384,11 +388,11 @@ def esm_extract(
                 return_contacts=True,
             )
 
-        logits = results["logits"][0].cpu().numpy()[1 : len(seq) + 1]
-        contact_prob_map = results["contacts"][0].cpu().numpy()
+        logits = results["logits"][0].cpu().numpy()[1 : len(seq) + 1]  # (L, L+2, vocab)
+        contact_prob_map = results["contacts"][0].cpu().numpy()  # (1, L, L)
         token_representation = torch.cat(
             [results["representations"][i] for i in range(1, layer + 1)]
-        )
+        )  # [layer, 1, L+2, d_layer]
         assert token_representation.size(0) == layer
 
         if approach == "last":
@@ -398,7 +402,7 @@ def esm_extract(
         elif approach == "mean":
             token_representation = token_representation.mean(dim=0)
 
-        token_representation = token_representation.cpu().numpy()
+        token_representation = token_representation.cpu().numpy()  # (L+2, d_layer)
         token_representation = token_representation[1 : len(seq) + 1]
     else:
         contact_prob_map = np.zeros(
@@ -408,18 +412,6 @@ def esm_extract(
         logits = np.zeros((len(seq), layer))
         interval = 350
         i = math.ceil(len(seq) / interval)
-        # ======================
-        # =                    =
-        # =                    =
-        # =          ======================
-        # =          =*********=          =
-        # =          =*********=          =
-        # ======================          =
-        #            =                    =
-        #            =                    =
-        #            ======================
-        # where * is the overlapping area
-        # subsection seq contact map prediction
         for s in range(i):
             start = s * interval  # sub seq predict start
             end = min((s + 2) * interval, len(seq))  # sub seq predict end

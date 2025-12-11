@@ -73,7 +73,8 @@ export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/h
 
 # ---- Project paths ----
 CONFIG_PATH="config"
-RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
+RESULT_PATH="./output/models/PSICHIC/results/exp/"
+#RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
 mkdir -p "${MODEL_PATH}"
@@ -92,7 +93,8 @@ BETAS="(0.9,0.999)"
 BATCH_SIZE=16
 N=10
 
-DATAFOLDER="./dataset/pdb2020"
+#DATAFOLDER="./dataset/pdb2020"
+DATAFOLDER="./data/exp"
 
 MAIN="src/train.py"
 

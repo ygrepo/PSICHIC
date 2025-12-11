@@ -428,16 +428,16 @@ def get_pna_degrees(
     This function provides the following logic:
 
     1. If `trained_model_path` does NOT exist:
-         → We are running a new training job.
-         → Attempt to load cached degree statistics from `datafolder/degree.pt`.
-         → If no cached file exists, compute degrees from the training set
+         We are running a new training job.
+         Attempt to load cached degree statistics from `datafolder/degree.pt`.
+         If no cached file exists, compute degrees from the training set
            (via `compute_pna_degrees(train_loader)`), then save them.
-         → Copy the resulting degree file into the new model directory
+         Copy the resulting degree file into the new model directory
            (`model_path/degree.pt`) so future runs can reuse them.
 
     2. If `trained_model_path` DOES exist:
-         → Load existing degree statistics from the previously trained model.
-         → This allows evaluation or fine-tuning without recomputing degrees.
+         Load existing degree statistics from the previously trained model.
+         This allows evaluation or fine-tuning without recomputing degrees.
 
     Returns
     -------
@@ -724,61 +724,61 @@ def main():
         # Load Data
         datafolder = args.datafolder.resolve()
         train_df, test_df, valid_df = load_dataframes(datafolder, args.n)
-        protein_dict, ligand_dict = load_or_init_graphs(
-            datafolder, train_df, test_df, valid_df
-        )
-        train_loader, valid_loader, test_loader = prepare_dataloaders(
-            args.sampling_col,
-            protein_dict,
-            ligand_dict,
-            train_df,
-            test_df,
-            valid_df,
-            args.device,
-            args.batch_size,
-        )
-        logger.info(
-            f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
-        )
-        # Initialize Model and Trainer
-        mol_deg, _, prot_deg = get_pna_degrees(
-            trained_model_path, datafolder, train_loader, model_path
-        )
-        model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
-        engine = initialize_trainer(
-            model,
-            config,
-            train_loader,
-            total_iters,
-            epochs,
-            device,
-            model_path,
-            args.seed,
-            args.finetune_modules,
-        )
+        # protein_dict, ligand_dict = load_or_init_graphs(
+        #     datafolder, train_df, test_df, valid_df
+        # )
+        # train_loader, valid_loader, test_loader = prepare_dataloaders(
+        #     args.sampling_col,
+        #     protein_dict,
+        #     ligand_dict,
+        #     train_df,
+        #     test_df,
+        #     valid_df,
+        #     args.device,
+        #     args.batch_size,
+        # )
+        # logger.info(
+        #     f"DataLoaders created. Train: {len(train_loader.dataset)}-{len(valid_loader.dataset)}-{len(test_loader.dataset)}"
+        # )
+        # # Initialize Model and Trainer
+        # mol_deg, _, prot_deg = get_pna_degrees(
+        #     trained_model_path, datafolder, train_loader, model_path
+        # )
+        # model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
+        # engine = initialize_trainer(
+        #     model,
+        #     config,
+        #     train_loader,
+        #     total_iters,
+        #     epochs,
+        #     device,
+        #     model_path,
+        #     args.seed,
+        #     args.finetune_modules,
+        # )
 
-        # Run Training
-        run_training(
-            engine,
-            train_loader,
-            valid_loader,
-            test_loader,
-            epochs,
-            args.evaluate_epoch,
-            args.evaluate_step,
-        )
+        # # Run Training
+        # run_training(
+        #     engine,
+        #     train_loader,
+        #     valid_loader,
+        #     test_loader,
+        #     epochs,
+        #     args.evaluate_epoch,
+        #     args.evaluate_step,
+        # )
 
-        # Run Final Evaluation
-        run_evaluation(
-            model,
-            model_path,
-            test_df,
-            test_loader,
-            interpret_path,
-            device,
-            args.save_interpret,
-            ligand_dict,
-        )
+        # # Run Final Evaluation
+        # run_evaluation(
+        #     model,
+        #     model_path,
+        #     test_df,
+        #     test_loader,
+        #     interpret_path,
+        #     device,
+        #     args.save_interpret,
+        #     ligand_dict,
+        # )
 
     except Exception as e:
         logger.exception("Script failed: %s", e)
