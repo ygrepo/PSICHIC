@@ -376,7 +376,7 @@ def esm_extract(
     pro_id = "A"
     if len(seq) <= 700:
         # Tokenization and move to device
-        batch_labels, batch_strs, batch_tokens = batch_converter([(pro_id, seq)])
+        _, _, batch_tokens = batch_converter([(pro_id, seq)])
         batch_tokens = batch_tokens.to(
             next(model.parameters()).device, non_blocking=True
         )
@@ -389,7 +389,7 @@ def esm_extract(
             )
 
         logits = results["logits"][0].cpu().numpy()[1 : len(seq) + 1]  # (L, L+2, vocab)
-        contact_prob_map = results["contacts"][0].cpu().numpy()  # (1, L, L)
+        contact_prob_map = results["contacts"][0].cpu().numpy()  # (L, L)
         token_representation = torch.cat(
             [results["representations"][i] for i in range(1, layer + 1)]
         )  # [layer, 1, L+2, d_layer]
@@ -418,9 +418,7 @@ def esm_extract(
 
             # prediction
             temp_seq = seq[start:end]
-            batch_labels, batch_strs, batch_tokens = batch_converter(
-                [(pro_id, temp_seq)]
-            )
+            _, _, batch_tokens = batch_converter([(pro_id, temp_seq)])
             batch_tokens = batch_tokens.to(
                 next(model.parameters()).device, non_blocking=True
             )

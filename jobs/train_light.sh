@@ -1,17 +1,17 @@
 #!/bin/bash
-# train.sh
+# train_light.sh
 
 # ------- LSF resources ------
-#BSUB -J train
+#BSUB -J train_light
 #BSUB -P acc_DiseaseGeneCell
-#BSUB -q gpu                  # queue
+#BSUB -q gpu     
+#BSUB -R "span[hosts=1]"
 #BSUB -gpu "num=1"
-#BSUB -R h100nvl
 #BSUB -n 1
-#BSUB -R "rusage[mem=128G]"
+#BSUB -R "rusage[mem=32G]"
 #BSUB -W 6:00
-#BSUB -o logs/train.%J.out
-#BSUB -e logs/train.%J.err
+#BSUB -o logs/train_light.%J.out
+#BSUB -e logs/train_light.%J.err
 # --------------------------------
 
 set -Eeo pipefail
