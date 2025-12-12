@@ -108,14 +108,7 @@ class ModelType(Enum):
             )
         )
         mapping = {
-            # ESMv1: return hub alias (cleaner)
-            ModelType.ESMV1: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/esm1v_t33_650M_UR90S_5.pt",
-            # ModelType.ESMV1: "esm1v_t33_650M_UR90S_5",
-            # ModelType.ESMV1: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models/esm1v_t33_650M_UR90S_5",
-            # ESM2 can be an HF repo id or a local dir
-            # ModelType.ESMV1: Path(
-            #     "/sc/arion/projects/DiseaseGeneCell/Huang_lab_project/drug_discovery/output/esm1v_local"
-            # ),
+            ModelType.ESMV1: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/",
             ModelType.ESM2: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/",
             ModelType.MUTAPLM: base / "mutaplm.pth",
             ModelType.PROTEINCLIP: base / "proteinclip",
@@ -253,20 +246,6 @@ def _resolve_parent_esm2_path(layers: int) -> str:
     return _ESM2_REPO[layers]
 
 
-# def _ensure_torch_home() -> Path:
-#     hub_dir = (
-#         os.environ.get("TORCH_HOME")
-#         or "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub"
-#     )
-#     hub_dir = Path(hub_dir)
-#     (hub_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
-#     try:
-#         torch.hub.set_dir(str(hub_dir))
-#     except Exception:
-#         pass
-#     return hub_dir
-
-
 def _hub_name_from_ref(model_ref: str | Path) -> str:
     """
     Accepts either a hub alias (esm1v_t33_650M_UR90S_5) or a filesystem path.
@@ -347,49 +326,6 @@ def load_fair_esm_cached(model_ref: str | Path, *, device: torch.device):
     return model, alphabet, f"hub:{hub_name}"
 
 
-# def load_fair_esm_cached(model_ref: str | Path, *, device: torch.device):
-#     """
-#     ESM loader with cache detection:
-#     - If model_ref is a local .pt path -> load local.
-#     - Else treat it as a hub alias and check $TORCH_HOME/checkpoints/<alias>.pt:
-#         - If exists -> load local from cache.
-#         - Else -> download from hub (to cache) and load.
-#     Also handles corrupted cache files by removing and re-downloading once.
-#     """
-#     # hub_dir = _ensure_torch_home()
-#     ref = str(model_ref)
-#     is_local = ref.endswith(".pt") and Path(ref).is_file()
-#     logger.info(f"Loading ESM model: {ref} (is_local={is_local})")
-#     if is_local:
-#         # Local .pt explicitly provided
-#         model, alphabet = pretrained.load_model_and_alphabet_local(ref)
-#         model = model.to(device).eval()
-#         return model, alphabet, f"local:{ref}"
-
-#     # Hub path: resolve expected cache file
-#     hub_name = _hub_name_from_ref(ref)  # e.g., "esm_t33_650M_UR90S_5"
-#     # cache_ckpt = hub_dir / "checkpoints" / f"{hub_name}.pt"
-
-#     # # 1) Try cached file if present
-#     # if cache_ckpt.is_file():
-#     #     try:
-#     #         model, alphabet = pretrained.load_model_and_alphabet_local(str(cache_ckpt))
-#     #         model = model.to(device).eval()
-#     #         return model, alphabet, f"cache:{cache_ckpt}"
-#     #     except Exception as e:
-#     #         # Corrupted/incompatible cache -> delete and re-download
-#     #         try:
-#     #             cache_ckpt.unlink(missing_ok=True)
-#     #         except Exception:
-#     #             pass  # best effort
-#     # fall through to hub download
-
-#     # Download from hub (this writes into $TORCH_HOME/checkpoints/)
-#     model, alphabet = pretrained.load_model_and_alphabet(hub_name)
-#     model = model.to(device).eval()
-#     return model, alphabet, f"hub:{hub_name}"
-
-
 # Load Model Factory Function
 def load_model_factory(
     model_type: ModelType,
@@ -412,17 +348,6 @@ def load_model_factory(
         _attach_max_len(model, model_type)
         logger.info("Loaded FAIR ESM model and Alphabet (%s)", src)
         return model, alphabet
-
-    # if model_type == ModelType.ESM2:
-    #     # (unchanged HF path)
-    #     model_path = str(model_type.path)
-    #     model = load_HF_model(model_path).to(device).eval()
-    #     CACHE_DIR = os.environ.get("HF_CACHE_DIR")
-    #     logger.info(f"Loading Tokenizer from {CACHE_DIR}")
-    #     tokenizer = load_HF_tokenizer(model_path, HF_TOKEN=None, CACHE_DIR=CACHE_DIR)
-    #     _attach_max_len(model, model_type)
-    #     logger.info("Loaded HF ESM2: %s", model_path)
-    #     return model, tokenizer
 
     if model_type == ModelType.MUTAPLM:
         model = create_mutaplm_model(config_path, device)

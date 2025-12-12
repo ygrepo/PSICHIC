@@ -1,15 +1,14 @@
 #!/bin/bash
 #   load_model.sh    — submit load_model jobs to LSF GPU queue
 
-
 #BSUB -J load_model
 #BSUB -P acc_DiseaseGeneCell
-#BSUB -q gpu
+#BSUB -q gpu     
+#BSUB -R "span[hosts=1]"
 #BSUB -gpu "num=1"
-#BSUB -R h100nvl
 #BSUB -n 1
-#BSUB -R "rusage[mem=32000]"
-#BSUB -W 2:00
+#BSUB -R "rusage[mem=32G]"
+#BSUB -W 6:00
 #BSUB -o logs/load_model.%J.out
 #BSUB -e logs/load_model.%J.err
 
@@ -40,8 +39,10 @@ export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/h
 
 LOG_DIR="logs"
 LOG_LEVEL="INFO"
-MODEL_TYPE="ESM2"
+MODEL_TYPE="ESMv1"
 MODEL_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
+#MODEL_TYPE="ESM2"
+#MODEL_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
 #MODEL_TYPE="ESMv1"
 #MODEL_TYPE="MUTAPLM"
 #MODEL_TYPE="ProteinCLIP"
