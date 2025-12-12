@@ -27,12 +27,6 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
     """Initializes protein graphs from sequences."""
     logger.info("Initializing protein graphs from sequences")
     result_dict = {}
-    # model_location = "esm2_t33_650M_UR50D"
-    # model, alphabet = esm.pretrained.load_model_and_alphabet(model_location)
-    # model.eval()
-    # if torch.cuda.is_available():
-    #     logger.info("Using CUDA")
-    #     model = model.cuda()
     batch_converter = alphabet.get_batch_converter()
 
     for seq in tqdm(seqs):
@@ -436,117 +430,6 @@ def contact_map(
     return edge_index, edge_weight
 
 
-# def esm_extract(
-#     model: torch.nn.Module,
-#     batch_converter: callable,
-#     seq: str,
-#     layer: int = 36,
-#     approach: str = "mean",
-#     dim: int = 2560,
-# ) -> tuple[Tensor, Tensor, Tensor]:
-#     pro_id = "A"
-#     if len(seq) <= 700:
-#         # Tokenization and move to device
-#         _, _, batch_tokens = batch_converter([(pro_id, seq)])
-#         batch_tokens = batch_tokens.to(
-#             next(model.parameters()).device, non_blocking=True
-#         )
-#         # Prediction
-#         with torch.no_grad():
-#             results = model(
-#                 batch_tokens,
-#                 repr_layers=[i for i in range(1, layer + 1)],
-#                 return_contacts=True,
-#             )
-
-#         logits = results["logits"][0].cpu().numpy()[1 : len(seq) + 1]  # (L, L+2, vocab)
-#         contact_prob_map = results["contacts"][0].cpu().numpy()  # (L, L)
-#         token_representation = torch.cat(
-#             [results["representations"][i] for i in range(1, layer + 1)]
-#         )  # [layer, 1, L+2, d_layer]
-#         assert token_representation.size(0) == layer
-
-#         if approach == "last":
-#             token_representation = token_representation[-1]
-#         elif approach == "sum":
-#             token_representation = token_representation.sum(dim=0)
-#         elif approach == "mean":
-#             token_representation = token_representation.mean(dim=0)
-
-#         token_representation = token_representation.cpu().numpy()  # (L+2, d_layer)
-#         token_representation = token_representation[1 : len(seq) + 1]
-#     else:
-#         contact_prob_map = np.zeros(
-#             (len(seq), len(seq))
-#         )  # global contact map prediction
-#         token_representation = np.zeros((len(seq), dim))
-#         logits = np.zeros((len(seq), layer))
-#         interval = 350
-#         i = math.ceil(len(seq) / interval)
-#         for s in range(i):
-#             start = s * interval  # sub seq predict start
-#             end = min((s + 2) * interval, len(seq))  # sub seq predict end
-
-#             # prediction
-#             temp_seq = seq[start:end]
-#             _, _, batch_tokens = batch_converter([(pro_id, temp_seq)])
-#             batch_tokens = batch_tokens.to(
-#                 next(model.parameters()).device, non_blocking=True
-#             )
-#             with torch.no_grad():
-#                 results = model(
-#                     batch_tokens,
-#                     repr_layers=[i for i in range(1, layer + 1)],
-#                     return_contacts=True,
-#                 )
-
-#             # insert into the global contact map
-#             row, col = np.where(contact_prob_map[start:end, start:end] != 0)
-#             row = row + start
-#             col = col + start
-#             contact_prob_map[start:end, start:end] = (
-#                 contact_prob_map[start:end, start:end]
-#                 + results["contacts"][0].cpu().numpy()
-#             )
-#             contact_prob_map[row, col] = contact_prob_map[row, col] / 2.0
-
-#             logits[start:end] += (
-#                 results["logits"][0].cpu().numpy()[1 : len(temp_seq) + 1]
-#             )
-#             logits[row] = logits[row] / 2.0
-
-#             ## TOKEN
-#             subtoken_repr = torch.cat(
-#                 [results["representations"][i] for i in range(1, layer + 1)]
-#             )
-#             assert subtoken_repr.size(0) == layer
-#             if approach == "last":
-#                 subtoken_repr = subtoken_repr[-1]
-#             elif approach == "sum":
-#                 subtoken_repr = subtoken_repr.sum(dim=0)
-#             elif approach == "mean":
-#                 subtoken_repr = subtoken_repr.mean(dim=0)
-
-#             subtoken_repr = subtoken_repr.cpu().numpy()
-#             subtoken_repr = subtoken_repr[1 : len(temp_seq) + 1]
-
-#             trow = np.where(token_representation[start:end].sum(axis=-1) != 0)[0]
-#             trow = trow + start
-#             token_representation[start:end] = (
-#                 token_representation[start:end] + subtoken_repr
-#             )
-#             token_representation[trow] = token_representation[trow] / 2.0
-
-#             if end == len(seq):
-#                 break
-
-#     return (
-#         torch.from_numpy(token_representation),
-#         torch.from_numpy(contact_prob_map),
-#         torch.from_numpy(logits),
-#     )
-
-
 def esm_extract(
     model: torch.nn.Module,
     batch_converter: Callable,
@@ -836,37 +719,37 @@ def esm_extract(
         raise
 
 
-def generate_ESM_structure(
-    model: torch.nn.Module, filename: Path, sequence: str
-) -> bool:
-    model.set_chunk_size(256)
-    chunk_size = 256
-    output = None
+# def generate_ESM_structure(
+#     model: torch.nn.Module, filename: Path, sequence: str
+# ) -> bool:
+#     model.set_chunk_size(256)
+#     chunk_size = 256
+#     output = None
 
-    while output is None:
-        try:
-            with torch.no_grad():
-                output = model.infer_pdb(sequence)
+#     while output is None:
+#         try:
+#             with torch.no_grad():
+#                 output = model.infer_pdb(sequence)
 
-            with open(filename, "w") as f:
-                f.write(output)
-                logger.info("saved", filename)
-        except RuntimeError as e:
-            if "out of memory" in str(e):
-                logger.info("| WARNING: ran out of memory on chunk_size", chunk_size)
-                for p in model.parameters():
-                    if p.grad is not None:
-                        del p.grad  # free some memory
-                torch.cuda.empty_cache()
-                chunk_size = chunk_size // 2
-                if chunk_size > 2:
-                    model.set_chunk_size(chunk_size)
-                else:
-                    logger.info("Not enough memory for ESMFold")
-                    break
-            else:
-                raise e
-    return output is not None
+#             with open(filename, "w") as f:
+#                 f.write(output)
+#                 logger.info("saved", filename)
+#         except RuntimeError as e:
+#             if "out of memory" in str(e):
+#                 logger.info("| WARNING: ran out of memory on chunk_size", chunk_size)
+#                 for p in model.parameters():
+#                     if p.grad is not None:
+#                         del p.grad  # free some memory
+#                 torch.cuda.empty_cache()
+#                 chunk_size = chunk_size // 2
+#                 if chunk_size > 2:
+#                     model.set_chunk_size(chunk_size)
+#                 else:
+#                     logger.info("Not enough memory for ESMFold")
+#                     break
+#             else:
+#                 raise e
+#     return output is not None
 
 
 biopython_parser = PDBParser()
