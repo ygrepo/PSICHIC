@@ -18,7 +18,6 @@ from typing import Optional, Union, List, Literal
 import warnings
 from esm import pretrained  # FAIR’s original library
 
-MODEL_DIR = Path(__file__).parent.parent / "pretrained"
 
 # map ESM2 layer counts to HF repos (used when local path isn't available)
 _ESM2_REPO = {
