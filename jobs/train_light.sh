@@ -119,6 +119,9 @@ echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"
 echo "Result path: ${RESULT_PATH}"
 echo "Model path: ${MODEL_PATH}"
+echo "Config path: ${CONFIG_PATH}"
+echo "Model PLM type: ${MODEL_PLM_TYPE}"
+echo "Model PLM fn: ${MODEL_PLM_FN}"
 echo "Regression task: ${REGRESSION_TASK}"
 echo "Classification task: ${CLASSIFICATION_TASK}"
 echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
@@ -143,6 +146,8 @@ set +e
   --config_path "${CONFIG_PATH}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
+  --model_plm_type "${MODEL_PLM_TYPE}" \
+  --model_plm_fn "${MODEL_PLM_FN}" \
   --save_interpret "${SAVE_INTERPRET}" \
   --regression_task "${REGRESSION_TASK}" \
   --classification_task "${CLASSIFICATION_TASK}" \
