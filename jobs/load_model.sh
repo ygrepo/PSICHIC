@@ -13,7 +13,7 @@
 #BSUB -o logs/load_model.%J.out
 #BSUB -e logs/load_model.%J.err
 
-set -euo pipefail
+set -eo pipefail
 
 # --- Clean environment to avoid ~/.local issues ---
 module purge
