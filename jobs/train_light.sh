@@ -8,7 +8,7 @@
 #BSUB -R "span[hosts=1]"
 #BSUB -gpu "num=1"
 #BSUB -n 1
-#BSUB -R "rusage[mem=32G]"
+#BSUB -R "rusage[mem=128G]"
 #BSUB -W 6:00
 #BSUB -o logs/train_light.%J.out
 #BSUB -e logs/train_light.%J.err
