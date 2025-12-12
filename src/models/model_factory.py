@@ -1,4 +1,4 @@
-rom __future__ import annotations
+from __future__ import annotations
 
 from transformers import AutoTokenizer, AutoModel, AutoModelForCausalLM
 
@@ -92,7 +92,6 @@ def _attach_max_len(model, model_type) -> int:
     return int(val)
 
 
-
 # Enum for model types
 class ModelType(Enum):
     ESMV1 = "ESMv1"
@@ -112,7 +111,7 @@ class ModelType(Enum):
         mapping = {
             # ESMv1: return hub alias (cleaner)
             ModelType.ESMV1: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/esm1v_t33_650M_UR90S_5.pt",
-            #ModelType.ESMV1: "esm1v_t33_650M_UR90S_5",
+            # ModelType.ESMV1: "esm1v_t33_650M_UR90S_5",
             # ModelType.ESMV1: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models/esm1v_t33_650M_UR90S_5",
             # ESM2 can be an HF repo id or a local dir
             # ModelType.ESMV1: Path(
