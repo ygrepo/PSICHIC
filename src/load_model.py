@@ -20,7 +20,7 @@ def parse_args():
     p.add_argument("--log_fn", type=str, default="")
     p.add_argument("--log_level", type=str, default="INFO")
     p.add_argument("--model_type", type=str, default="")
-    p.add_argument("--model_fn", type=str, default="")
+    p.add_argument("--model_fn", type=str, default=None)
     p.add_argument(
         "--config",
         type=str,

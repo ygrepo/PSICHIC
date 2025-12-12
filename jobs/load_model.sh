@@ -54,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --log_dir) LOG_DIR="$2"; shift 2 ;;
     --log_level) LOG_LEVEL="$2"; shift 2 ;;
     --model_type) MODEL_TYPE="$2"; shift 2 ;;
+    --model_fn) MODEL_FN="$2"; shift 2 ;;
     *) echo "Unknown parameter: $1"; exit 1 ;;
   esac
 done
@@ -75,6 +76,7 @@ echo "Starting with the following configuration:" | tee -a "$LOG_FILE"
 echo "  Log level: ${LOG_LEVEL}" | tee -a "$LOG_FILE"
 echo "  Log file: ${LOG_FILE}" | tee -a "$LOG_FILE"
 echo "  Model type: ${MODEL_TYPE}" | tee -a "$LOG_FILE"
+echo "  Model fn: ${MODEL_FN}" | tee -a "$LOG_FILE"
 
 PYTHON="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic/bin/python"
 
@@ -83,6 +85,7 @@ $PYTHON \
     --log_fn "$LOG_FILE" \
     --log_level "$LOG_LEVEL" \
     --model_type "$MODEL_TYPE" \
+    --model_fn "$MODEL_FN" \
     2>&1 | tee -a "$LOG_FILE"
 
 # Check the exit status of the Python script
