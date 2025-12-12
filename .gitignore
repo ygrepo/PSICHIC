@@ -1,2 +1,7 @@
 .DS_Store
 *.DS_Store
+data/
+dataset/
+output/
+logs/
+*__pycache__/
