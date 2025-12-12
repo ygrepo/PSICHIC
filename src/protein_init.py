@@ -14,7 +14,7 @@ from torch_geometric.utils import (
     remove_self_loops,
     coalesce,
 )
-
+from typing import Callable, Tuple
 import math
 
 
