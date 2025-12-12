@@ -9,7 +9,6 @@ import torch.nn as nn
 from torch.serialization import add_safe_globals
 import torch.nn.functional as F
 import yaml
-import re
 
 from enum import Enum
 from pathlib import Path
