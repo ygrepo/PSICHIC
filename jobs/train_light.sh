@@ -69,6 +69,23 @@ PYTHON="${ENV_PREFIX}/bin/python"
 export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
 export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/hf_token.csv"
 
+
+ml proxies/1 || true
+
+
+export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
+mkdir -p "$HF_HOME"
+
+export TORCH_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/"
+mkdir -p "$TORCH_HOME"
+
+export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/hf_token.csv"
+
+# MODEL_TYPE="ESMv1"
+# MODEL_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+MODEL_PLM_TYPE="ESM2"
+MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
+
 # ---- Project paths ----
 CONFIG_PATH="config"
 RESULT_PATH="./output/models/PSICHIC/results/exp/"

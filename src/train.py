@@ -26,6 +26,9 @@ from src.model_utils import (
     CustomWeightedRandomSampler,
 )
 
+from src.load_model import load_model_factory
+from src.models.model_factory import ModelType
+
 logger = get_logger(__name__)
 
 # Utils
@@ -77,6 +80,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config_path", type=Path, default="config")
 
+    parser.add_argument(
+        "--model_plm_type", type=str, default="ESM2", help="Type of model to use"
+    )
+    parser.add_argument(
+        "--model_plm_fn", type=str, default="", help="Path to model checkpoint"
+    )
     ### Data and Pre-processing
     parser.add_argument(
         "--datafolder", type=Path, default="./dataset/pdb2020", help="Protein data path"
@@ -287,6 +296,8 @@ def load_or_init_graphs(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     valid_df: pd.DataFrame,
+    model_plm_type: str,
+    model_plm_fn: str,
 ) -> tuple[dict, dict]:
     """Loads pre-computed graph data or initializes it if not found."""
 
@@ -320,9 +331,15 @@ def load_or_init_graphs(
         logger.info("Loading Protein Graph data...")
         protein_dict = torch.load(protein_path)
     else:
+        mt = ModelType.from_str(model_plm_type)
+        model, alphabet = load_model_factory(model_type=mt, model_ref=model_plm_fn)
+        model.eval()
+        if torch.cuda.is_available():
+            logger.info("Using CUDA")
+            model = model.cuda()
         logger.info("Initialising Protein Sequence to Protein Graph...")
         logger.info(f"Number of unique proteins: {len(protein_seqs)}")
-        protein_dict = protein_init(protein_seqs)
+        protein_dict = protein_init(model, alphabet, protein_seqs)
         logger.info(f"Saving Protein Graph data to: {protein_path}")
         torch.save(protein_dict, protein_path)
 
@@ -676,6 +693,8 @@ def main():
 
         logger.info(f"Current working directory: {os.getcwd()}")
         logger.info(f"Data folder: {args.datafolder}")
+        logger.info(f"Model plm type: {args.model_plm_type}")
+        logger.info(f"Model plm fn: {args.model_plm_fn}")
         logger.info(f"Result path: {args.result_path}")
         logger.info(f"Config path: {args.config_path}")
         trained_model_path = args.trained_model_path
@@ -730,7 +749,12 @@ def main():
             f"Data loaded. Train: {len(train_df)}-{len(test_df)}-{len(valid_df)}"
         )
         protein_dict, ligand_dict = load_or_init_graphs(
-            datafolder, train_df, test_df, valid_df
+            datafolder,
+            train_df,
+            test_df,
+            valid_df,
+            args.model_plm_type,
+            args.model_plm_fn,
         )
         train_loader, valid_loader, test_loader = prepare_dataloaders(
             args.sampling_col,

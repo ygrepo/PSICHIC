@@ -23,16 +23,16 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 
-def protein_init(seqs: list[str]) -> dict[str, dict]:
+def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
     """Initializes protein graphs from sequences."""
     logger.info("Initializing protein graphs from sequences")
     result_dict = {}
-    model_location = "esm2_t33_650M_UR50D"
-    model, alphabet = esm.pretrained.load_model_and_alphabet(model_location)
-    model.eval()
-    if torch.cuda.is_available():
-        logger.info("Using CUDA")
-        model = model.cuda()
+    # model_location = "esm2_t33_650M_UR50D"
+    # model, alphabet = esm.pretrained.load_model_and_alphabet(model_location)
+    # model.eval()
+    # if torch.cuda.is_available():
+    #     logger.info("Using CUDA")
+    #     model = model.cuda()
     batch_converter = alphabet.get_batch_converter()
 
     for seq in tqdm(seqs):

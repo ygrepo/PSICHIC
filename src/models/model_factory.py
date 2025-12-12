@@ -18,6 +18,8 @@ from typing import Optional, Union, List, Literal
 import warnings
 from esm import pretrained  # FAIR’s original library
 
+T
+
 
 # map ESM2 layer counts to HF repos (used when local path isn't available)
 _ESM2_REPO = {
