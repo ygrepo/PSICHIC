@@ -116,9 +116,7 @@ class ModelType(Enum):
             # ModelType.ESMV1: Path(
             #     "/sc/arion/projects/DiseaseGeneCell/Huang_lab_project/drug_discovery/output/esm1v_local"
             # ),
-            ModelType.ESM2: Path(
-                os.getenv("ESM2_PATH", str(base / "esm2_t33_650M_UR50D_safe"))
-            ),
+            ModelType.ESM2: "/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/",
             ModelType.MUTAPLM: base / "mutaplm.pth",
             ModelType.PROTEINCLIP: base / "proteinclip",
             ModelType.LLAMA: "meta-llama/Meta-Llama-3-8B-Instruct",
@@ -286,51 +284,117 @@ def _hub_name_from_ref(model_ref: str | Path) -> str:
 
 def load_fair_esm_cached(model_ref: str | Path, *, device: torch.device):
     """
-    ESM loader with cache detection:
-    - If model_ref is a local .pt path -> load local.
-    - Else treat it as a hub alias and check $TORCH_HOME/checkpoints/<alias>.pt:
-        - If exists -> load local from cache.
-        - Else -> download from hub (to cache) and load.
-    Also handles corrupted cache files by removing and re-downloading once.
+    ESM loader with simple local-path + parent-folder cache semantics.
+
+    - If `model_ref` is an existing .pt file:
+        -> load via `pretrained.load_model_and_alphabet_local(model_ref)`.
+
+    - If `model_ref` does NOT exist:
+        -> treat the *parent directory* of `model_ref` as the cache root:
+           * set TORCH_HOME to that parent
+           * derive hub alias from `model_ref` (stem or full string)
+           * call `pretrained.load_model_and_alphabet(hub_name)`
+           * FAIR ESM will download the checkpoint into TORCH_HOME/checkpoints/<hub_name>.pt
+
+    Returns
+    -------
+    model : nn.Module
+        ESM model on `device` in eval mode.
+    alphabet : Alphabet
+        ESM alphabet object.
+    origin : str
+        "local:<path>" if loaded from explicit file,
+        "hub:<hub_name>" if downloaded via hub into parent folder.
     """
-    # hub_dir = _ensure_torch_home()
     ref = str(model_ref)
-    is_local = ref.endswith(".pt") and Path(ref).is_file()
-    logger.info(f"Loading ESM model: {ref} (is_local={is_local})")
-    if is_local:
-        # Local .pt explicitly provided
-        model, alphabet = pretrained.load_model_and_alphabet_local(ref)
+    ref_path = Path(ref)
+    logger.info(f"Loading ESM model from ref={ref_path}")
+
+    # ---  explicit local checkpoint path exists ---
+    if ref_path.is_file():
+        logger.info(
+            f"Found local ESM checkpoint at {ref_path}, using load_model_and_alphabet_local()"
+        )
+        model, alphabet = pretrained.load_model_and_alphabet_local(str(ref_path))
         model = model.to(device).eval()
-        return model, alphabet, f"local:{ref}"
+        return model, alphabet, f"local:{ref_path}"
 
-    # Hub path: resolve expected cache file
-    hub_name = _hub_name_from_ref(ref)  # e.g., "esm_t33_650M_UR90S_5"
-    # cache_ckpt = hub_dir / "checkpoints" / f"{hub_name}.pt"
+    # --- file does NOT exist -> use parent folder as cache root ---
+    # parent cache root (if `model_ref` is a directory, use it directly;
+    # if it's a file path that doesn't exist, use its parent)
+    cache_root = ref_path if ref_path.is_dir() else ref_path.parent
+    cache_root.mkdir(parents=True, exist_ok=True)
 
-    # # 1) Try cached file if present
-    # if cache_ckpt.is_file():
-    #     try:
-    #         model, alphabet = pretrained.load_model_and_alphabet_local(str(cache_ckpt))
-    #         model = model.to(device).eval()
-    #         return model, alphabet, f"cache:{cache_ckpt}"
-    #     except Exception as e:
-    #         # Corrupted/incompatible cache -> delete and re-download
-    #         try:
-    #             cache_ckpt.unlink(missing_ok=True)
-    #         except Exception:
-    #             pass  # best effort
-    # fall through to hub download
+    # set TORCH_HOME so FAIR ESM downloads into this folder
+    os.environ["TORCH_HOME"] = str(cache_root)
+    logger.info(f"Torch home (ESM cache root) set to: {cache_root}")
 
-    # Download from hub (this writes into $TORCH_HOME/checkpoints/)
+    # derive hub alias:
+    # - if ref looks like ".../esm2_t33_650M_UR50D.pt" -> use stem "esm2_t33_650M_UR50D"
+    # - else, fall back to the raw ref string
+    if ref_path.suffix == ".pt":
+        hub_key = ref_path.stem
+    else:
+        hub_key = ref_path.name or ref
+
+    hub_name = _hub_name_from_ref(hub_key)  # e.g. "esm2_t33_650M_UR50D"
+    logger.info(f"Downloading/loading ESM hub model: {hub_name}")
+
+    # This will download to TORCH_HOME/checkpoints/<hub_name>.pt if not already present
     model, alphabet = pretrained.load_model_and_alphabet(hub_name)
     model = model.to(device).eval()
+
     return model, alphabet, f"hub:{hub_name}"
+
+
+# def load_fair_esm_cached(model_ref: str | Path, *, device: torch.device):
+#     """
+#     ESM loader with cache detection:
+#     - If model_ref is a local .pt path -> load local.
+#     - Else treat it as a hub alias and check $TORCH_HOME/checkpoints/<alias>.pt:
+#         - If exists -> load local from cache.
+#         - Else -> download from hub (to cache) and load.
+#     Also handles corrupted cache files by removing and re-downloading once.
+#     """
+#     # hub_dir = _ensure_torch_home()
+#     ref = str(model_ref)
+#     is_local = ref.endswith(".pt") and Path(ref).is_file()
+#     logger.info(f"Loading ESM model: {ref} (is_local={is_local})")
+#     if is_local:
+#         # Local .pt explicitly provided
+#         model, alphabet = pretrained.load_model_and_alphabet_local(ref)
+#         model = model.to(device).eval()
+#         return model, alphabet, f"local:{ref}"
+
+#     # Hub path: resolve expected cache file
+#     hub_name = _hub_name_from_ref(ref)  # e.g., "esm_t33_650M_UR90S_5"
+#     # cache_ckpt = hub_dir / "checkpoints" / f"{hub_name}.pt"
+
+#     # # 1) Try cached file if present
+#     # if cache_ckpt.is_file():
+#     #     try:
+#     #         model, alphabet = pretrained.load_model_and_alphabet_local(str(cache_ckpt))
+#     #         model = model.to(device).eval()
+#     #         return model, alphabet, f"cache:{cache_ckpt}"
+#     #     except Exception as e:
+#     #         # Corrupted/incompatible cache -> delete and re-download
+#     #         try:
+#     #             cache_ckpt.unlink(missing_ok=True)
+#     #         except Exception:
+#     #             pass  # best effort
+#     # fall through to hub download
+
+#     # Download from hub (this writes into $TORCH_HOME/checkpoints/)
+#     model, alphabet = pretrained.load_model_and_alphabet(hub_name)
+#     model = model.to(device).eval()
+#     return model, alphabet, f"hub:{hub_name}"
 
 
 # Load Model Factory Function
 def load_model_factory(
     model_type: ModelType,
     *,
+    model_ref: str | Path = "",
     config_path: Path = Path("configs/mutaplm_inference.yaml"),
 ):
     """
@@ -343,7 +407,7 @@ def load_model_factory(
     logger.info("Using device: %s", device)
 
     if model_type == ModelType.ESMV1 or model_type == ModelType.ESM2:
-        model_ref = model_type.path  # can be a hub name *or* a local .pt path
+        # model_ref = model_type.path  # can be a hub name *or* a local .pt path
         model, alphabet, src = load_fair_esm_cached(model_ref, device=device)
         _attach_max_len(model, model_type)
         logger.info("Loaded FAIR ESM model and Alphabet (%s)", src)

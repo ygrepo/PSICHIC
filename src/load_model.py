@@ -20,6 +20,7 @@ def parse_args():
     p.add_argument("--log_fn", type=str, default="")
     p.add_argument("--log_level", type=str, default="INFO")
     p.add_argument("--model_type", type=str, default="")
+    p.add_argument("--model_fn", type=str, default="")
     p.add_argument(
         "--config",
         type=str,
@@ -39,8 +40,9 @@ def main():
         logger.info(f"Config: {args.config}")
         logger.info("Loading model...")
         logger.info(f"Model type: {args.model_type}")
+        logger.info(f"Model fn: {args.model_fn}")
         mt = ModelType.from_str(args.model_type)
-        load_model_factory(mt, config_path=Path(args.config))
+        load_model_factory(mt, model_ref=args.model_fn, config_path=Path(args.config))
         logger.info("Model loaded successfully.")
     except Exception as e:
         logger.exception("Script failed: %s", e)  # or this
