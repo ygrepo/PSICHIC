@@ -334,12 +334,23 @@ def load_or_init_graphs(
         mt = ModelType.from_str(model_plm_type)
         model, alphabet = load_model_factory(model_type=mt, model_ref=model_plm_fn)
         model.eval()
+        for p in model.parameters():
+            p.requires_grad_(False)
         if torch.cuda.is_available():
             logger.info("Using CUDA")
             model = model.cuda()
         logger.info("Initialising Protein Sequence to Protein Graph...")
         logger.info(f"Number of unique proteins: {len(protein_seqs)}")
         protein_dict = protein_init(model, alphabet, protein_seqs)
+        # ---- PLM is no longer needed ----
+        model.cpu()
+        del model
+        del alphabet
+
+        import gc
+
+        gc.collect()
+        torch.cuda.empty_cache()
         logger.info(f"Saving Protein Graph data to: {protein_path}")
         torch.save(protein_dict, protein_path)
 
