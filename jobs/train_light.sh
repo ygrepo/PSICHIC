@@ -52,6 +52,8 @@ fi
 # shellcheck disable=SC1091
 source "${base_dir}/etc/profile.d/conda.sh"
 
+
+
 # ---- Paths / env ----
 ENV_PREFIX="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic"
 PIP_CACHE_DIR="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.pip_cache"
@@ -116,6 +118,16 @@ DATAFOLDER="./data/exp"
 MAIN="src/train.py"
 
 [[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN} (PWD=$(pwd))"; exit 2; }
+
+export CUDA_VISIBLE_DEVICES=0
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+
+echo "=== GPU status ==="
+nvidia-smi
+echo "=================="
+
 
 echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"
