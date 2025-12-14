@@ -85,10 +85,10 @@ export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/h
 
 # MODEL_TYPE="ESMv1"
 # # MODEL_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
-# MODEL_PLM_TYPE="ESM2"
-# MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
-MODEL_PLM_TYPE="ESMv1"
-MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+MODEL_PLM_TYPE="ESM2"
+MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
+# MODEL_PLM_TYPE="ESMv1"
+# MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
 
 # ---- Project paths ----
 CONFIG_PATH="config"
