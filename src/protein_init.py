@@ -47,6 +47,11 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
             approach="last",
             dim=model_dim or 1280,  # falls back only if model.embed_dim missing
         )
+        if torch.isnan(token_repr).any() or torch.isnan(contact_map_proba).any():
+            logger.warning(
+                "Skipping sequence due to NaNs in ESM outputs (len=%d)", len(seq)
+            )
+            continue
 
         assert len(contact_map_proba) == len(seq)
         edge_index, edge_weight = contact_map(contact_map_proba)
@@ -623,40 +628,28 @@ def esm_extract(
             else:
                 contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
 
-            # # Forward
-            # with torch.no_grad():
-            #     results = model(
-            #         batch_tokens,
-            #         repr_layers=[i for i in range(1, layer + 1)],
-            #         return_contacts=True,
-            #     )
-
-            # # logits: (1, L+2, vocab_size) → (L, vocab_size)
-            # logits_np = results["logits"][0].cpu().numpy()[1 : L + 1]
-
-            # # contacts: may be (L+2, L+2) → slice, or already (L, L)
-            # if "contacts" in results:
-            #     contacts_raw = results["contacts"][0].cpu().numpy()
-            #     if contacts_raw.shape[0] == L + 2:
-            #         contact_prob_map_np = contacts_raw[1 : L + 1, 1 : L + 1]
-            #     else:
-            #         contact_prob_map_np = contacts_raw
-            # else:
-            #     contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
-
             # representations: [layer, 1, L+2, dim]
             token_representation = torch.cat(
                 [results["representations"][i] for i in range(1, layer + 1)]
             )
             assert token_representation.size(0) == layer
-
-            # Combine layers
+            # Representations (only use keys you requested in repr_layers)
             if approach == "last":
-                token_representation = token_representation[-1]
+                token_representation = results["representations"][
+                    layer
+                ]  # (1, L+2, dim)
             elif approach == "sum":
-                token_representation = token_representation.sum(dim=0)
+                token_representation = torch.stack(
+                    [results["representations"][i] for i in repr_layers], dim=0
+                ).sum(
+                    dim=0
+                )  # (1, L+2, dim)
             elif approach == "mean":
-                token_representation = token_representation.mean(dim=0)
+                token_representation = torch.stack(
+                    [results["representations"][i] for i in repr_layers], dim=0
+                ).mean(
+                    dim=0
+                )  # (1, L+2, dim)
             else:
                 raise ValueError(
                     f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
@@ -712,12 +705,6 @@ def esm_extract(
                         repr_layers=repr_layers,
                         return_contacts=True,
                     )
-                # with torch.no_grad():
-                #     results = model(
-                #         batch_tokens,
-                #         repr_layers=[i for i in range(1, layer + 1)],
-                #         return_contacts=True,
-                #     )
 
                 # Local logits (len(temp_seq), vocab_size)
                 local_logits = results["logits"][0].cpu().numpy()[1 : len(temp_seq) + 1]
@@ -770,26 +757,6 @@ def esm_extract(
                     )
 
                 subtoken_repr_np = subtoken_repr.cpu().numpy()[1 : len(temp_seq) + 1]
-
-                # # Local token representations
-                # subtoken_repr = torch.cat(
-                #     [results["representations"][i] for i in range(1, layer + 1)]
-                # )
-                # assert subtoken_repr.size(0) == layer
-
-                # if approach == "last":
-                #     subtoken_repr = subtoken_repr[-1]
-                # elif approach == "sum":
-                #     subtoken_repr = subtoken_repr.sum(dim=0)
-                # elif approach == "mean":
-                #     subtoken_repr = subtoken_repr.mean(dim=0)
-                # else:
-                #     raise ValueError(
-                #         f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
-                #     )
-
-                # subtoken_repr_np = subtoken_repr.cpu().numpy()[1 : len(temp_seq) + 1]
-
                 # Overlap positions for embeddings
                 trow = np.where(token_representation_np[start:end].sum(axis=-1) != 0)[0]
                 trow = trow + start
@@ -813,7 +780,7 @@ def esm_extract(
         return token_representation, contact_prob_map, logits
 
     except Exception as e:
-        logger.error("Error in esm_extract for sequence len %d: %s", len(seq), e)
+        logger.exception("Error in esm_extract for sequence len %d", len(seq))
         if return_nan_on_error:
             return _nan_outputs(len(seq))
         raise

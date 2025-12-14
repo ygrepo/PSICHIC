@@ -93,13 +93,29 @@ def get_mae(y, f):
     return mae
 
 
+# def get_sd(y, f):
+#     f, y = f.reshape(-1, 1), y.reshape(-1, 1)
+#     lr = LinearRegression()
+#     lr.fit(f, y)
+#     y_ = lr.predict(f)
+#     sd = (((y - y_) ** 2).sum() / (len(y) - 1)) ** 0.5
+#     return sd
 def get_sd(y, f):
-    f, y = f.reshape(-1, 1), y.reshape(-1, 1)
+    f = f.reshape(-1)
+    y = y.reshape(-1)
+
+    mask = np.isfinite(f) & np.isfinite(y)
+    f = f[mask].reshape(-1, 1)
+    y = y[mask].reshape(-1, 1)
+
+    if len(y) < 2:
+        return float("nan")
+
     lr = LinearRegression()
     lr.fit(f, y)
     y_ = lr.predict(f)
     sd = (((y - y_) ** 2).sum() / (len(y) - 1)) ** 0.5
-    return sd
+    return float(sd)
 
 
 def get_pearson(y, f):
