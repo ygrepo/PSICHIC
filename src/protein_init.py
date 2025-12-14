@@ -48,9 +48,13 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
             dim=model_dim or 1280,  # falls back only if model.embed_dim missing
         )
         if torch.isnan(token_repr).any() or torch.isnan(contact_map_proba).any():
-            logger.warning(
-                "Skipping sequence due to NaNs in ESM outputs (len=%d)", len(seq)
+            logger.warning("Protein ESM failed; using zero features (len=%d)", len(seq))
+            L = len(seq)
+            token_repr = torch.zeros(
+                (L, model_dim or token_repr.shape[1]), dtype=torch.float32
             )
+            contact_map_proba = torch.zeros((L, L), dtype=torch.float32)
+
             continue
 
         assert len(contact_map_proba) == len(seq)
@@ -67,34 +71,6 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
         }
 
     return result_dict
-
-
-# def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
-#     """Initializes protein graphs from sequences."""
-#     logger.info("Initializing protein graphs from sequences")
-#     result_dict = {}
-#     batch_converter = alphabet.get_batch_converter()
-
-#     for seq in tqdm(seqs):
-#         seq_feat = seq_feature(seq)
-#         token_repr, contact_map_proba, _ = esm_extract(
-#             model, batch_converter, seq, layer=33, approach="last", dim=1280
-#         )
-
-#         assert len(contact_map_proba) == len(seq)
-#         edge_index, edge_weight = contact_map(contact_map_proba)
-
-#         result_dict[seq] = {
-#             "seq": seq,
-#             "seq_feat": torch.from_numpy(seq_feat),
-#             "token_representation": token_repr.half(),
-#             "num_nodes": len(seq),
-#             "num_pos": torch.arange(len(seq)).reshape(-1, 1),
-#             "edge_index": edge_index,
-#             "edge_weight": edge_weight,
-#         }
-
-#     return result_dict
 
 
 # normalize
@@ -476,6 +452,15 @@ def contact_map(
     return edge_index, edge_weight
 
 
+# Helper to generate NaN outputs with proper shapes
+def _nan_outputs(L: int) -> Tuple[Tensor, Tensor, Tensor]:
+    vocab_size = int(getattr(model.embed_tokens, "num_embeddings", 1))
+    token_repr = torch.full((L, dim), float("nan"), dtype=torch.float32)
+    contact = torch.full((L, L), float("nan"), dtype=torch.float32)
+    logits = torch.full((L, vocab_size), float("nan"), dtype=torch.float32)
+    return token_repr, contact, logits
+
+
 def esm_extract(
     model: torch.nn.Module,
     batch_converter: Callable,
@@ -540,14 +525,6 @@ def esm_extract(
             "Overriding dim=%d with model.embed_dim=%d for ESM1v.", dim, embed_dim
         )
         dim = embed_dim
-
-    # Helper to generate NaN outputs with proper shapes
-    def _nan_outputs(L: int) -> Tuple[Tensor, Tensor, Tensor]:
-        vocab_size = int(getattr(model.embed_tokens, "num_embeddings", 1))
-        token_repr = torch.full((L, dim), float("nan"), dtype=torch.float32)
-        contact = torch.full((L, L), float("nan"), dtype=torch.float32)
-        logits = torch.full((L, vocab_size), float("nan"), dtype=torch.float32)
-        return token_repr, contact, logits
 
     try:
         # Sanitize sequence: strip, uppercase, map non-20 AAs to 'X'
@@ -628,11 +605,6 @@ def esm_extract(
             else:
                 contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
 
-            # representations: [layer, 1, L+2, dim]
-            token_representation = torch.cat(
-                [results["representations"][i] for i in range(1, layer + 1)]
-            )
-            assert token_representation.size(0) == layer
             # Representations (only use keys you requested in repr_layers)
             if approach == "last":
                 token_representation = results["representations"][

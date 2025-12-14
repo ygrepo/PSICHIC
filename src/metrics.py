@@ -25,7 +25,22 @@ logger = get_logger(__name__)
 
 
 def get_cindex(Y, P):
-    return concordance_index(Y, P)
+    Y = np.asarray(Y).reshape(-1)
+    P = np.asarray(P).reshape(-1)
+
+    mask = np.isfinite(Y) & np.isfinite(P)
+    n_bad = int((~mask).sum())
+    if n_bad > 0:
+        logger.warning("c-index: dropping %d/%d pairs due to NaN/inf", n_bad, len(Y))
+
+    Y = Y[mask]
+    P = P[mask]
+
+    # lifelines needs at least 2 comparable points; be conservative
+    if len(Y) < 2:
+        return float("nan")
+
+    return float(concordance_index(Y, P))
 
 
 def get_mse(Y, P):
