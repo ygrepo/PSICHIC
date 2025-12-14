@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 from datetime import datetime
 from torch_geometric.loader import DataLoader
+import gc
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -188,12 +189,6 @@ def parse_args() -> argparse.Namespace:
     )
     args = parser.parse_args()
 
-    # if args.epochs is not None and args.total_iters is not None:
-    #     logger.info(
-    #         "If epochs and total iters are both not None, then we only use iters."
-    #     )
-    #     args.epochs = None
-
     return args
 
 
@@ -326,7 +321,7 @@ def load_or_init_graphs(
         )
 
     # Load or initialize protein graphs
-    protein_path = datafolder / "protein.pt"
+    protein_path = datafolder / f"{model_plm_type}_protein.pt"
     if protein_path.exists():
         logger.info("Loading Protein Graph data...")
         protein_dict = torch.load(protein_path)
@@ -346,9 +341,6 @@ def load_or_init_graphs(
         model.cpu()
         del model
         del alphabet
-
-        import gc
-
         gc.collect()
         torch.cuda.empty_cache()
         logger.info(f"Saving Protein Graph data to: {protein_path}")
@@ -658,6 +650,7 @@ def run_training(
 
 
 def run_evaluation(
+    model_plm_type: str,
     model: net,
     model_path: Path,
     test_df: pd.DataFrame,
@@ -675,7 +668,7 @@ def run_evaluation(
     year = timestamp.year
     month = timestamp.month  # Month (1-12)
     day = timestamp.day  # Day of the month (1-31)
-    fn = model_path / f"{year}_{month:02d}_{day:02d}_model.pt"
+    fn = model_path / f"{year}_{month:02d}_{day:02d}_{model_plm_type}_model.pt"
     model.load_state_dict(torch.load(fn, map_location=device))
 
     screen_df = virtual_screening(
@@ -691,7 +684,10 @@ def run_evaluation(
     year = timestamp.year
     month = timestamp.month  # Month (1-12)
     day = timestamp.day  # Day of the month (1-31)
-    fn = model_path / f"{year}_{month:02d}_{day:02d}_test_prediction.csv"
+    fn = (
+        model_path
+        / f"{year}_{month:02d}_{day:02d}_{model_plm_type}_test_prediction.csv"
+    )
     screen_df.to_csv(fn, index=False)
     logger.info(f"Test predictions saved to: {fn}")
 
@@ -810,14 +806,15 @@ def main():
 
         # Run Final Evaluation
         run_evaluation(
-            model,
-            model_path,
-            test_df,
-            test_loader,
-            interpret_path,
-            device,
-            args.save_interpret,
-            ligand_dict,
+            model_plm_type=args.model_plm_type,
+            model=model,
+            model_path=model_path,
+            test_df=test_df,
+            test_loader=test_loader,
+            interpret_path=interpret_path,
+            device=device,
+            save_interpret=args.save_interpret,
+            ligand_dict=ligand_dict,
         )
 
     except Exception as e:

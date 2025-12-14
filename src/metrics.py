@@ -107,14 +107,6 @@ def get_mae(y, f):
     mae = (np.abs(y - f)).mean()
     return mae
 
-
-# def get_sd(y, f):
-#     f, y = f.reshape(-1, 1), y.reshape(-1, 1)
-#     lr = LinearRegression()
-#     lr.fit(f, y)
-#     y_ = lr.predict(f)
-#     sd = (((y - y_) ** 2).sum() / (len(y) - 1)) ** 0.5
-#     return sd
 def get_sd(y, f):
     f = f.reshape(-1)
     y = y.reshape(-1)

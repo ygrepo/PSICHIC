@@ -726,25 +726,26 @@ def esm_extract(
                 logits_cnt[start:end] += 1
 
                 # ---- contacts: (chunk_len, chunk_len) ----
-                if "contacts" in results:
-                    contacts_raw = results["contacts"][0].detach().cpu().numpy()
-                    if contacts_raw.shape[0] == chunk_len + 2:
-                        local_contacts = contacts_raw[
-                            1 : chunk_len + 1, 1 : chunk_len + 1
-                        ].astype(np.float32, copy=False)
-                    elif contacts_raw.shape[0] == chunk_len:
-                        local_contacts = contacts_raw.astype(np.float32, copy=False)
-                    else:
-                        logger.warning(
-                            "Unexpected local contacts shape %s for chunk_len=%d; using zeros.",
-                            tuple(contacts_raw.shape),
-                            chunk_len,
-                        )
-                        local_contacts = np.zeros(
-                            (chunk_len, chunk_len), dtype=np.float32
-                        )
-                else:
-                    local_contacts = np.zeros((chunk_len, chunk_len), dtype=np.float32)
+                local_contacts = _extract_contacts(results, chunk_len)
+                # if "contacts" in results:
+                #     contacts_raw = results["contacts"][0].detach().cpu().numpy()
+                #     if contacts_raw.shape[0] == chunk_len + 2:
+                #         local_contacts = contacts_raw[
+                #             1 : chunk_len + 1, 1 : chunk_len + 1
+                #         ].astype(np.float32, copy=False)
+                #     elif contacts_raw.shape[0] == chunk_len:
+                #         local_contacts = contacts_raw.astype(np.float32, copy=False)
+                #     else:
+                #         logger.warning(
+                #             "Unexpected local contacts shape %s for chunk_len=%d; using zeros.",
+                #             tuple(contacts_raw.shape),
+                #             chunk_len,
+                #         )
+                #         local_contacts = np.zeros(
+                #             (chunk_len, chunk_len), dtype=np.float32
+                #         )
+                # else:
+                #     local_contacts = np.zeros((chunk_len, chunk_len), dtype=np.float32)
 
                 contact_sum[start:end, start:end] += local_contacts
                 contact_cnt[start:end, start:end] += 1
