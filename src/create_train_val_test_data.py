@@ -29,8 +29,8 @@ def load_data(path: str) -> pd.DataFrame:
     logger.info(f"Head: {df.head()}")
     df.rename(
         columns={
-            "ECNumber": "ID",
-            "label": "regression_label",
+            "ec": "ID",
+            "log10_value": "regression_label",
             "Sequence": "Protein",
             "Smiles": "Ligand",
         },
@@ -40,8 +40,6 @@ def load_data(path: str) -> pd.DataFrame:
         "ID",
         "Ligand",
         "Protein",
-        "metabolite_features",
-        "protein_features",
         "regression_label",
     ]
     df = df[cols]
@@ -214,16 +212,14 @@ def process_data(
     train_df, val_df, test_df = split_data(
         df, split_mode, "Ligand", "Protein", random_state=seed
     )
-    timestamp = datetime.now().strftime("%Y%m%d")
     output_dir = output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / f"{timestamp}_{dataset_name}_train.pt"
+    output_file = output_dir / f"{dataset_name}_{split_mode}" / "train.csv"
     logger.info(f"Saving train to: {output_file}")
     save_csv_parquet_torch(train_df, output_file)
-    output_file = output_dir / f"{timestamp}_{dataset_name}_val.pt"
+    output_file = output_dir / f"{dataset_name}_{split_mode}" / "val.csv"
     logger.info(f"Saving val to: {output_file}")
     save_csv_parquet_torch(val_df, output_file)
-    output_file = output_dir / f"{timestamp}_{dataset_name}_test.pt"
+    output_file = output_dir / f"{dataset_name}_{split_mode}" / "test.csv"
     logger.info(f"Saving test to: {output_file}")
     save_csv_parquet_torch(test_df, output_file)
 
