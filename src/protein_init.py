@@ -23,50 +23,58 @@ from src.utils import get_logger
 logger = get_logger(__name__)
 
 
+def sanitize_seq(s: str) -> str:
+    s = (s or "").strip().upper()
+    allowed = set("ACDEFGHIKLMNPQRSTVWY")
+    return "".join([aa if aa in allowed else "X" for aa in s])
+
+
 def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
     """Initializes protein graphs from sequences (FAIR ESM1v/ESM2)."""
     logger.info("Initializing protein graphs from sequences")
     result_dict = {}
     batch_converter = alphabet.get_batch_converter()
 
-    # sensible defaults derived from the model
     model_layers = int(getattr(model, "num_layers", 0))
     model_dim = int(getattr(model, "embed_dim", 0))
-
-    # If you want "last layer", use model.num_layers rather than hardcoding 33
     use_layer = model_layers if model_layers > 0 else 33
+    use_dim = model_dim or 1280
 
     for seq in tqdm(seqs):
-        seq_feat = seq_feature(seq)
+        seq_clean = sanitize_seq(seq)
+        L = len(seq_clean)
+
+        # If sanitization produces empty (unlikely), skip
+        if L == 0:
+            logger.warning("Skipping empty sequence after sanitization.")
+            continue
+
+        # Ensure seq_feature uses the same cleaned sequence
+        seq_feat = seq_feature(seq_clean)
 
         token_repr, contact_map_proba, _ = esm_extract(
             model,
             batch_converter,
-            seq,
-            layer=use_layer,  # last layer for whatever model is loaded
+            seq_clean,
+            layer=use_layer,
             approach="last",
-            dim=model_dim or 1280,  # falls back only if model.embed_dim missing
+            dim=use_dim,
+            interval=350,  # explicit
         )
 
-        L = len(seq)
+        # Fallback instead of skipping (prevents dataset KeyError)
         if torch.isnan(token_repr).any() or torch.isnan(contact_map_proba).any():
-            logger.warning("Protein ESM failed; using zero features (len=%d)", len(seq))
-            token_repr = torch.zeros(
-                (L, model_dim or token_repr.shape[1]), dtype=torch.float32
-            )
+            logger.warning("Protein ESM failed; using zero features (len=%d)", L)
+            token_repr = torch.zeros((L, use_dim), dtype=torch.float32)
             contact_map_proba = torch.zeros((L, L), dtype=torch.float32)
 
-            continue
-
-        assert len(contact_map_proba) == len(seq)
-        edge_index, edge_weight = contact_map(contact_map_proba)
-
-        # Ensure shapes are consistent
+        # Shape checks (now against seq_clean length)
         assert (
             token_repr.shape[0] == L
         ), f"token_repr len mismatch: {token_repr.shape[0]} vs {L}"
-        assert (
-            contact_map_proba.shape[0] == L and contact_map_proba.shape[1] == L
+        assert contact_map_proba.shape == (
+            L,
+            L,
         ), f"contact_map shape mismatch: {tuple(contact_map_proba.shape)} vs {(L, L)}"
 
         seq_feat_t = torch.from_numpy(seq_feat)
@@ -75,19 +83,91 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
         ), f"seq_feat len mismatch: {seq_feat_t.shape[0]} vs {L}"
 
         num_pos = torch.arange(L).reshape(-1, 1)
-        assert num_pos.shape[0] == L, f"num_pos len mismatch: {num_pos.shape[0]} vs {L}"
 
+        # Build edges from contacts
+        edge_index, edge_weight = contact_map(contact_map_proba)
+
+        # IMPORTANT: choose a stable key
+        # If dataset uses raw seq strings as keys, keep seq as the key.
+        # If you can, key by seq_clean and ensure dataset uses seq_clean too.
         result_dict[seq] = {
             "seq": seq,
             "seq_feat": seq_feat_t,
             "token_representation": token_repr.half(),
-            "num_nodes": len(seq),
+            "num_nodes": L,
             "num_pos": num_pos,
             "edge_index": edge_index,
             "edge_weight": edge_weight,
         }
 
     return result_dict
+
+
+# def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
+#     """Initializes protein graphs from sequences (FAIR ESM1v/ESM2)."""
+#     logger.info("Initializing protein graphs from sequences")
+#     result_dict = {}
+#     batch_converter = alphabet.get_batch_converter()
+
+#     # sensible defaults derived from the model
+#     model_layers = int(getattr(model, "num_layers", 0))
+#     model_dim = int(getattr(model, "embed_dim", 0))
+
+#     # If you want "last layer", use model.num_layers rather than hardcoding 33
+#     use_layer = model_layers if model_layers > 0 else 33
+
+#     for seq in tqdm(seqs):
+#         seq_feat = seq_feature(seq)
+
+#         token_repr, contact_map_proba, _ = esm_extract(
+#             model,
+#             batch_converter,
+#             seq,
+#             layer=use_layer,  # last layer for whatever model is loaded
+#             approach="last",
+#             dim=model_dim or 1280,  # falls back only if model.embed_dim missing
+#         )
+
+#         L = len(seq)
+#         if torch.isnan(token_repr).any() or torch.isnan(contact_map_proba).any():
+#             logger.warning("Protein ESM failed; using zero features (len=%d)", len(seq))
+#             token_repr = torch.zeros(
+#                 (L, model_dim or token_repr.shape[1]), dtype=torch.float32
+#             )
+#             contact_map_proba = torch.zeros((L, L), dtype=torch.float32)
+
+#             continue
+
+#         assert len(contact_map_proba) == len(seq)
+#         edge_index, edge_weight = contact_map(contact_map_proba)
+
+#         # Ensure shapes are consistent
+#         assert (
+#             token_repr.shape[0] == L
+#         ), f"token_repr len mismatch: {token_repr.shape[0]} vs {L}"
+#         assert (
+#             contact_map_proba.shape[0] == L and contact_map_proba.shape[1] == L
+#         ), f"contact_map shape mismatch: {tuple(contact_map_proba.shape)} vs {(L, L)}"
+
+#         seq_feat_t = torch.from_numpy(seq_feat)
+#         assert (
+#             seq_feat_t.shape[0] == L
+#         ), f"seq_feat len mismatch: {seq_feat_t.shape[0]} vs {L}"
+
+#         num_pos = torch.arange(L).reshape(-1, 1)
+#         assert num_pos.shape[0] == L, f"num_pos len mismatch: {num_pos.shape[0]} vs {L}"
+
+#         result_dict[seq] = {
+#             "seq": seq,
+#             "seq_feat": seq_feat_t,
+#             "token_representation": token_repr.half(),
+#             "num_nodes": len(seq),
+#             "num_pos": num_pos,
+#             "edge_index": edge_index,
+#             "edge_weight": edge_weight,
+#         }
+
+#     return result_dict
 
 
 # normalize
@@ -469,18 +549,6 @@ def contact_map(
     return edge_index, edge_weight
 
 
-# Helper to generate NaN outputs with proper shapes
-def _nan_outputs(L: int) -> Tuple[Tensor, Tensor, Tensor]:
-    vocab_size = int(getattr(model.embed_tokens, "num_embeddings", 1))
-    token_repr = torch.full((L, dim), float("nan"), dtype=torch.float32)
-    contact = torch.full((L, L), float("nan"), dtype=torch.float32)
-    logits = torch.full((L, vocab_size), float("nan"), dtype=torch.float32)
-    return token_repr, contact, logits
-
-
-# assumes you already have logger defined
-
-
 def esm_extract(
     model: torch.nn.Module,
     batch_converter: Callable,
@@ -604,7 +672,7 @@ def esm_extract(
 
         # Conservative max residue length for single pass:
         # FAIR ESM uses special tokens, so residues typically <= max_positions (often 1022).
-        # We'll keep your prior 700 guard and also respect max_positions.
+        # We'll keep the prior 700 guard and also respect max_positions.
         max_residues_single = min(700, max_positions)
 
         # =========================================================
@@ -785,7 +853,7 @@ def esm_extract(
                 mask_c
             ].astype(np.float32, copy=False)
 
-        # Convert to tensors float32 on CPU (consistent with your downstream)
+        # Convert to tensors float32 on CPU (consistent with downstream)
         token_representation = torch.from_numpy(
             token_representation_np.astype(np.float32, copy=False)
         )
@@ -804,303 +872,6 @@ def esm_extract(
         if return_nan_on_error:
             return _nan_outputs(len(seq) if seq is not None else 0)
         raise
-
-
-# def esm_extract(
-#     model: torch.nn.Module,
-#     batch_converter: Callable,
-#     seq: str,
-#     layer: int = 33,  # esm1v_t33_650M_UR90S_5
-#     approach: str = "mean",  # 'mean', 'sum', or 'last' over layers
-#     dim: int = 1280,  # esm1v embed_dim
-#     interval: int = 350,
-#     return_nan_on_error: bool = True,
-# ) -> Tuple[Tensor, Tensor, Tensor]:
-#     """
-#     ESM1v extraction for esm1v_t33_650M_UR90S_5 with sanitization and token validity checks.
-
-#     Parameters
-#     ----------
-#     model : torch.nn.Module
-#         ESM1v model instance (e.g. esm1v_t33_650M_UR90S_5).
-#     batch_converter : callable
-#         Alphabet batch converter returned by esm.Alphabet.get_batch_converter().
-#     seq : str
-#         Amino acid sequence (will be uppercased and non-20 AAs mapped to 'X').
-#     layer : int, default 33
-#         Number of layers to use / aggregate over (clipped to model.num_layers).
-#     approach : {'mean', 'sum', 'last'}
-#         How to combine layer-wise representations.
-#     dim : int, default 1280
-#         Embedding dimension (model.embed_dim for esm1v_t33_650M_UR90S_5).
-#     interval : int, default 350
-#         Chunk size for long-sequence sliding-window inference.
-#     return_nan_on_error : bool, default True
-#         If True, return NaN tensors instead of raising on errors.
-
-#     Returns
-#     -------
-#     token_representation : (L, dim) torch.FloatTensor
-#         Per-residue embeddings (special tokens removed).
-#     contact_prob_map : (L, L) torch.FloatTensor
-#         Contact probability matrix.
-#     logits : (L, vocab_size) torch.FloatTensor
-#         Per-residue logits over vocabulary.
-#     """
-
-#     device = next(model.parameters()).device
-
-#     # Model properties (robust even if you switch to another ESM1v variant)
-#     num_layers = int(getattr(model, "num_layers", layer))
-#     embed_dim = int(getattr(model, "embed_dim", dim))
-#     max_len_model = int(getattr(model, "max_positions", 1022))
-
-#     # Clip layer to model.num_layers if user passes a larger value
-#     if layer > num_layers:
-#         logger.warning(
-#             "Requested layer=%d > model.num_layers=%d; clipping to num_layers.",
-#             layer,
-#             num_layers,
-#         )
-#         layer = num_layers
-
-#     # Use model.embed_dim as true dim if not matching default
-#     if dim != embed_dim:
-#         logger.debug(
-#             "Overriding dim=%d with model.embed_dim=%d for ESM1v.", dim, embed_dim
-#         )
-#         dim = embed_dim
-
-#     try:
-#         # Sanitize sequence: strip, uppercase, map non-20 AAs to 'X'
-#         seq = (seq or "").strip().upper()
-#         clean = []
-#         replaced = 0
-#         for aa in seq:
-#             if aa in "ACDEFGHIKLMNPQRSTVWY":
-#                 clean.append(aa)
-#             else:
-#                 clean.append("X")
-#                 replaced += 1
-#         seq = "".join(clean)
-
-#         if replaced > 0:
-#             logger.debug(
-#                 "Sequence len %d → %d residues replaced with 'X' (ESM1v-safe).",
-#                 len(seq),
-#                 replaced,
-#             )
-
-#         L = len(seq)
-#         if L == 0:
-#             logger.warning("Empty sequence after sanitization; returning NaNs.")
-#             return _nan_outputs(0)
-
-#         pro_id = "A"
-#         vocab_size = int(model.embed_tokens.num_embeddings)
-
-#         # Short sequence branch: single forward pass (no chunking)
-#         # Keep some margin from max_positions because of special tokens
-#         if L <= min(700, max_len_model):
-#             # Tokenize on CPU
-#             _, _, batch_tokens = batch_converter([(pro_id, seq)])
-
-#             # Token ID validity check before GPU
-#             max_id = int(batch_tokens.max().item())
-#             if max_id >= vocab_size:
-#                 bad_idx = (
-#                     (batch_tokens >= vocab_size).nonzero(as_tuple=True)[1].tolist()
-#                 )
-#                 bad_chars = [seq[i - 1] for i in bad_idx if 0 <= i - 1 < L]
-#                 msg = (
-#                     f"Invalid token IDs for seq len {L} (max id {max_id}, "
-#                     f"vocab {vocab_size}). Chars: {bad_chars}"
-#                 )
-#                 logger.error(msg)
-#                 if return_nan_on_error:
-#                     return _nan_outputs(L)
-#                 raise RuntimeError(msg)
-
-#             batch_tokens = batch_tokens.to(device, non_blocking=True)
-
-#             # Decide which layers to request based on aggregation strategy
-#             if approach == "last":
-#                 repr_layers = [layer]
-#             else:
-#                 repr_layers = list(range(1, layer + 1))
-
-#             # Forward
-#             with torch.no_grad():
-#                 results = model(
-#                     batch_tokens,
-#                     repr_layers=repr_layers,
-#                     return_contacts=True,
-#                 )
-
-#             # logits: (1, L+2, vocab_size) → (L, vocab_size)
-#             logits_np = results["logits"][0].cpu().numpy()[1 : L + 1]
-
-#             # contacts: may be (L+2, L+2) → slice, or already (L, L)
-#             if "contacts" in results:
-#                 contacts_raw = results["contacts"][0].cpu().numpy()
-#                 if contacts_raw.shape[0] == L + 2:
-#                     contact_prob_map_np = contacts_raw[1 : L + 1, 1 : L + 1]
-#                 else:
-#                     contact_prob_map_np = contacts_raw
-#             else:
-#                 contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
-
-#             # Representations (only use keys you requested in repr_layers)
-#             if approach == "last":
-#                 token_representation = results["representations"][
-#                     layer
-#                 ]  # (1, L+2, dim)
-#             elif approach == "sum":
-#                 token_representation = torch.stack(
-#                     [results["representations"][i] for i in repr_layers], dim=0
-#                 ).sum(
-#                     dim=0
-#                 )  # (1, L+2, dim)
-#             elif approach == "mean":
-#                 token_representation = torch.stack(
-#                     [results["representations"][i] for i in repr_layers], dim=0
-#                 ).mean(
-#                     dim=0
-#                 )  # (1, L+2, dim)
-#             else:
-#                 raise ValueError(
-#                     f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
-#                 )
-
-#             # Drop special tokens → (L, dim)
-#             token_representation_np = token_representation.cpu().numpy()[1 : L + 1]
-
-#         # Long sequence branch: sliding-window with overlap + averaging
-#         else:
-#             contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
-#             token_representation_np = np.zeros((L, dim), dtype=np.float32)
-#             logits_np = np.zeros((L, vocab_size), dtype=np.float32)
-
-#             n_chunks = math.ceil(L / interval)
-
-#             # Request only the layers you need
-#             if approach == "last":
-#                 repr_layers = [layer]
-#             else:
-#                 repr_layers = list(range(1, layer + 1))
-
-#             for s in range(n_chunks):
-#                 start = s * interval
-#                 end = min((s + 2) * interval, L)  # allow overlap window
-
-#                 temp_seq = seq[start:end]
-#                 _, _, batch_tokens = batch_converter([(pro_id, temp_seq)])
-
-#                 # Token ID validity check before GPU
-#                 max_id = int(batch_tokens.max().item())
-#                 if max_id >= vocab_size:
-#                     bad_idx = (
-#                         (batch_tokens >= vocab_size).nonzero(as_tuple=True)[1].tolist()
-#                     )
-#                     bad_chars = [
-#                         temp_seq[i - 1] for i in bad_idx if 0 <= i - 1 < len(temp_seq)
-#                     ]
-#                     msg = (
-#                         f"Invalid token IDs in chunk [{start}:{end}] (max id {max_id}, "
-#                         f"vocab {vocab_size}). Chars: {bad_chars}"
-#                     )
-#                     logger.error(msg)
-#                     if return_nan_on_error:
-#                         return _nan_outputs(L)
-#                     raise RuntimeError(msg)
-
-#                 batch_tokens = batch_tokens.to(device, non_blocking=True)
-
-#                 with torch.no_grad():
-#                     results = model(
-#                         batch_tokens,
-#                         repr_layers=repr_layers,
-#                         return_contacts=True,
-#                     )
-
-#                 # Local logits (len(temp_seq), vocab_size)
-#                 local_logits = results["logits"][0].cpu().numpy()[1 : len(temp_seq) + 1]
-
-#                 # Local contacts
-#                 if "contacts" in results:
-#                     contacts_raw = results["contacts"][0].cpu().numpy()
-#                     if contacts_raw.shape[0] == len(temp_seq) + 2:
-#                         local_contacts = contacts_raw[
-#                             1 : len(temp_seq) + 1, 1 : len(temp_seq) + 1
-#                         ]
-#                     else:
-#                         local_contacts = contacts_raw
-#                 else:
-#                     local_contacts = np.zeros(
-#                         (end - start, end - start), dtype=np.float32
-#                     )
-
-#                 # Merge contacts into global contact map
-#                 existing_mask = contact_prob_map_np[start:end, start:end] != 0
-#                 row, col = np.where(existing_mask)
-#                 row = row + start
-#                 col = col + start
-
-#                 contact_prob_map_np[start:end, start:end] += local_contacts
-#                 if row.size > 0:
-#                     contact_prob_map_np[row, col] = contact_prob_map_np[row, col] / 2.0
-
-#                 # Merge logits
-#                 logits_np[start:end] += local_logits
-#                 if row.size > 0:
-#                     logits_np[row] = logits_np[row] / 2.0
-
-#                 # Local token representations
-#                 if approach == "last":
-#                     # (1, chunk_len+2, dim)
-#                     subtoken_repr = results["representations"][layer]
-#                 elif approach == "sum":
-#                     # stack: (n_layers, 1, chunk_len+2, dim) -> sum over layers -> (1, chunk_len+2, dim)
-#                     subtoken_repr = torch.stack(
-#                         [results["representations"][i] for i in repr_layers], dim=0
-#                     ).sum(dim=0)
-#                 elif approach == "mean":
-#                     subtoken_repr = torch.stack(
-#                         [results["representations"][i] for i in repr_layers], dim=0
-#                     ).mean(dim=0)
-#                 else:
-#                     raise ValueError(
-#                         f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
-#                     )
-
-#                 subtoken_repr_np = subtoken_repr.cpu().numpy()[1 : len(temp_seq) + 1]
-#                 # Overlap positions for embeddings
-#                 trow = np.where(token_representation_np[start:end].sum(axis=-1) != 0)[0]
-#                 trow = trow + start
-
-#                 token_representation_np[start:end] += subtoken_repr_np
-#                 if trow.size > 0:
-#                     token_representation_np[trow] = token_representation_np[trow] / 2.0
-
-#                 if end == L:
-#                     break
-
-#         # Convert to float32 tensors
-#         token_representation = torch.from_numpy(
-#             token_representation_np.astype(np.float32, copy=False)
-#         )
-#         contact_prob_map = torch.from_numpy(
-#             contact_prob_map_np.astype(np.float32, copy=False)
-#         )
-#         logits = torch.from_numpy(logits_np.astype(np.float32, copy=False))
-
-#         return token_representation, contact_prob_map, logits
-
-#     except Exception as e:
-#         logger.exception("Error in esm_extract for sequence len %d", len(seq))
-#         if return_nan_on_error:
-#             return _nan_outputs(len(seq))
-#         raise
 
 
 # biopython_parser = PDBParser()
