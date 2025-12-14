@@ -23,9 +23,14 @@ module load cuda/11.8 cudnn
 module load anaconda3/latest
 source $(conda info --base)/etc/profile.d/conda.sh
 
-export PROJ=/sc/arion/projects/DiseaseGeneCell/Huang_lab_data
-export CONDARC="$PROJ/conda/condarc"
-conda activate /sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic
+
+
+# --- Paths (edit if needed) ---
+ENV_PREFIX="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic"
+unset PYTHONPATH || true
+# --- Activate env (must exist already) ---
+conda activate "${ENV_PREFIX}"
+PYTHON="${ENV_PREFIX}/bin/python"
 
 ml proxies/1 || true
 export PYTHONUNBUFFERED=1 TERM=xterm
