@@ -85,14 +85,17 @@ export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/h
 
 # MODEL_TYPE="ESMv1"
 # # MODEL_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
-MODEL_PLM_TYPE="ESM2"
-MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
-# MODEL_PLM_TYPE="ESMv1"
-# MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+# MODEL_PLM_TYPE="ESM2"
+# MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
+MODEL_PLM_TYPE="ESMv1"
+MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+DATASET="catpred"
+LABEL="kcat"
+SPLITMODE="drug"
 
 # ---- Project paths ----
 CONFIG_PATH="config"
-RESULT_PATH="./output/models/PSICHIC/results/exp/"
+RESULT_PATH="./output/models/PSICHIC/results/${DATASET}_${LABEL}_${SPLITMODE}"
 #RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
@@ -113,7 +116,7 @@ BATCH_SIZE=16
 N=10
 
 #DATAFOLDER="./dataset/pdb2020"
-DATAFOLDER="./data/exp"
+DATAFOLDER="./data/${DATASET}_${LABEL}_${SPLITMODE}"
 
 MAIN="src/train.py"
 
