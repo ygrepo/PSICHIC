@@ -25,6 +25,8 @@ logger = get_logger(__name__)
 
 def load_data(path: str) -> pd.DataFrame:
     df = joblib.load(path).reset_index(drop=True)
+    logger.info(f"Columns: {df.columns}")
+    logger.info(f"Head: {df.head()}")
     df.rename(
         columns={
             "ECNumber": "ID",
@@ -246,8 +248,6 @@ def main():
         data_fn = data_fn / f"{args.label}_with_features.joblib"
         logger.info(f"Data file: {data_fn}")
         df = load_data(data_fn)
-        logger.info(f"Columns: {df.columns}")
-        logger.info(f"Head: {df.head()}")
         logger.info(f"Loaded {len(df)} samples")
         if args.N > 0:
             df = df.head(n=args.N)
