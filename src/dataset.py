@@ -87,8 +87,11 @@ class ProteinMoleculeDataset(Dataset):
             for _, v in self.prots.items():
                 v["seq_feat"] = v["seq_feat"].float()
                 v["token_representation"] = v["token_representation"].float()
-                v["num_nodes"] = len(v["seq"])
-                v["node_pos"] = torch.arange(len(v["seq"])).reshape(-1, 1)
+                L = v["seq_feat"].shape[0]
+                v["num_nodes"] = L
+                v["node_pos"] = torch.arange(L).reshape(-1, 1)
+                # v["num_nodes"] = len(v["seq"])
+                # v["node_pos"] = torch.arange(len(v["seq"])).reshape(-1, 1)
                 v["edge_weight"] = v["edge_weight"].float()
 
     def get(self, index):
@@ -143,8 +146,11 @@ class ProteinMoleculeDataset(Dataset):
             prot_seq = prot["seq"]
             prot_node_aa = prot["seq_feat"]
             prot_node_evo = prot["token_representation"]
-            prot_num_nodes = prot["num_nodes"]
-            prot_node_pos = prot["node_pos"]
+            L = prot["seq_feat"].shape[0]
+            prot_num_nodes = L
+            prot_node_pos = torch.arange(L).reshape(-1, 1)
+            # prot_num_nodes = prot["num_nodes"]
+            # prot_node_pos = prot["node_pos"]
             prot_edge_index = prot["edge_index"]
             prot_edge_weight = prot["edge_weight"]
         else:
@@ -165,8 +171,9 @@ class ProteinMoleculeDataset(Dataset):
             prot_seq = prot["seq"]
             prot_node_aa = prot["seq_feat"].float()
             prot_node_evo = prot["token_representation"].float()
-            prot_num_nodes = len(prot["seq"])
-            prot_node_pos = torch.arange(len(prot["seq"])).reshape(-1, 1)
+            L = prot["seq_feat"].shape[0]
+            prot_num_nodes = L
+            prot_node_pos = torch.arange(L).reshape(-1, 1)
             prot_edge_index = prot["edge_index"]
             prot_edge_weight = prot["edge_weight"].float()
 
@@ -202,7 +209,7 @@ class ProteinMoleculeDataset(Dataset):
 
 
 def maybe_num_nodes(index, num_nodes: int | None = None) -> int:
-    # NOTE(WMF): I find out a problem here,
+    # NOTE: I find out a problem here,
     # index.max().item() -> int
     # num_nodes -> tensor
     # need type conversion.
