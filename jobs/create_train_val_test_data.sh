@@ -1,5 +1,19 @@
 
+#!/bin/bash
+# create_train_val_test_data.sh — create train/val/test data for ML gene benchmark
 
+# ------- LSF resources ------
+#BSUB -J create_train_val_test_data
+#BSUB -P acc_DiseaseGeneCell
+#BSUB -q premium
+#BSUB -n 1
+#BSUB -R "rusage[mem=128G]"
+#BSUB -W 6:00
+#BSUB -o logs/create_train_val_test_data.%J.out
+#BSUB -e logs/create_train_val_test_data.%J.err
+
+
+# --------------------------------
 
 set -eo pipefail
 
