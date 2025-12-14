@@ -214,12 +214,15 @@ def process_data(
     )
     output_dir = output_dir.resolve()
     output_file = output_dir / f"{dataset_name}_{split_mode}" / "train.csv"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving train to: {output_file}")
     save_csv_parquet_torch(train_df, output_file)
     output_file = output_dir / f"{dataset_name}_{split_mode}" / "val.csv"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving val to: {output_file}")
     save_csv_parquet_torch(val_df, output_file)
     output_file = output_dir / f"{dataset_name}_{split_mode}" / "test.csv"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving test to: {output_file}")
     save_csv_parquet_torch(test_df, output_file)
 
