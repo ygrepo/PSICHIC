@@ -428,7 +428,8 @@ def contact_map(
     row, col = edge_index
 
     # Edge weights are the raw probabilities for those contacts
-    edge_weight = torch.tensor(contact_map_proba[row, col], dtype=torch.float32)
+    # edge_weight = torch.tensor(contact_map_proba[row, col], dtype=torch.float32)
+    edge_weight = contact_map_proba[row, col].float().clone()
 
     # ----------------------------------------------------------------------
     # CONNECT ISOLATED NODES (Sequence edges) – Level 1: i <-> i+1

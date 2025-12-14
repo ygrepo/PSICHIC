@@ -209,28 +209,81 @@ def tree_decomposition(
 ###
 
 
-def smiles2graph(m_str: str) -> dict:
+def smiles2graph(m_str: str) -> dict | None:
+    """
+    Convert a molecule SMILES to a graph dict.
+    Returns None for reaction strings (contains '>>') or invalid SMILES.
+    """
+    dropped = 0
+    if m_str is None:
+        return None
+
+    m_str = str(m_str).strip()
+    if m_str == "":
+        return None
+
+    # Drop reaction SMARTS / reaction SMILES
+    if ">>" in m_str:
+        logger.warning(f"Reaction string detected, dropping: {m_str}")
+        dropped += 1
+        return None
+
     mgd = MoleculeGraphDataset(halogen_detail=False)
+
     mol = Chem.MolFromSmiles(m_str)
-    # mol = get_mol(m_str)
+    if mol is None:
+        logger.warning(f"Invalid SMILES string, dropping: {m_str}")
+        dropped += 1
+        return None
+
+    # Optional: ensure chemistry is sanitized (MolFromSmiles usually sanitizes, but be explicit)
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception:
+        logger.warning(f"Sanitization failed, dropping: {m_str}")
+        dropped += 1
+        return None
+
+    logger.info(f"dropped: {dropped}")
     atom_feature, bond_feature = mgd.featurize(mol, "atom_full_feature")
     atom_idx, _ = mgd.featurize(mol, "atom_type")
     tree = mgd.junction_tree(mol)
 
     out_dict = {
         "smiles": m_str,
-        "atom_feature": torch.tensor(atom_feature),  # .to(torch.int8),
-        "atom_types": "|".join([i.GetSymbol() for i in mol.GetAtoms()]),
-        "atom_idx": torch.tensor(atom_idx),  # .to(torch.int8),
-        "bond_feature": torch.tensor(bond_feature),  # .to(torch.int8),
+        "atom_feature": torch.as_tensor(atom_feature),
+        "atom_types": "|".join([a.GetSymbol() for a in mol.GetAtoms()]),
+        "atom_idx": torch.as_tensor(atom_idx),
+        "bond_feature": torch.as_tensor(bond_feature),
     }
-    tree["tree_edge_index"] = tree["tree_edge_index"]  # .to(torch.int8)
-    tree["atom2clique_index"] = tree["atom2clique_index"]  # .to(torch.int8)
-    tree["x_clique"] = tree["x_clique"]  # .to(torch.int8)
 
+    # Keep tree tensors as returned by junction_tree (assumed torch tensors already)
     out_dict.update(tree)
-
     return out_dict
+
+
+# def smiles2graph(m_str: str) -> dict:
+#     mgd = MoleculeGraphDataset(halogen_detail=False)
+#     mol = Chem.MolFromSmiles(m_str)
+#     # mol = get_mol(m_str)
+#     atom_feature, bond_feature = mgd.featurize(mol, "atom_full_feature")
+#     atom_idx, _ = mgd.featurize(mol, "atom_type")
+#     tree = mgd.junction_tree(mol)
+
+#     out_dict = {
+#         "smiles": m_str,
+#         "atom_feature": torch.tensor(atom_feature),  # .to(torch.int8),
+#         "atom_types": "|".join([i.GetSymbol() for i in mol.GetAtoms()]),
+#         "atom_idx": torch.tensor(atom_idx),  # .to(torch.int8),
+#         "bond_feature": torch.tensor(bond_feature),  # .to(torch.int8),
+#     }
+#     tree["tree_edge_index"] = tree["tree_edge_index"]  # .to(torch.int8)
+#     tree["atom2clique_index"] = tree["atom2clique_index"]  # .to(torch.int8)
+#     tree["x_clique"] = tree["x_clique"]  # .to(torch.int8)
+
+#     out_dict.update(tree)
+
+#     return out_dict
 
 
 ####
@@ -845,9 +898,24 @@ class MoleculeGraphDataset:
         return atom_feature, bond_feature
 
 
+# def ligand_init(smiles_list: list[str]) -> dict[str, dict]:
+#     ligand_dict = {}
+#     for smiles in tqdm(smiles_list):
+#         ligand_dict[smiles] = smiles2graph(smiles)
+
+#     return ligand_dict
+
+
 def ligand_init(smiles_list: list[str]) -> dict[str, dict]:
     ligand_dict = {}
-    for smiles in tqdm(smiles_list):
-        ligand_dict[smiles] = smiles2graph(smiles)
+    dropped = 0
 
+    for smi in smiles_list:
+        g = smiles2graph(smi)
+        if g is None:
+            dropped += 1
+            continue
+        ligand_dict[smi] = g
+
+    logger.info("Ligands built: %d, dropped: %d", len(ligand_dict), dropped)
     return ligand_dict

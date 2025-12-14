@@ -293,7 +293,7 @@ def load_or_init_graphs(
     valid_df: pd.DataFrame,
     model_plm_type: str,
     model_plm_fn: str,
-) -> tuple[dict, dict]:
+) -> tuple[dict, dict, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Loads pre-computed graph data or initializes it if not found."""
 
     # Get unique proteins and ligands
@@ -358,9 +358,37 @@ def load_or_init_graphs(
         logger.info(f"Saving Ligand Graph data to: {ligand_path}")
         torch.save(ligand_dict, ligand_path)
 
+    # --------------------------
+    # Filter split dataframes to only pairs with existing graphs
+    # --------------------------
+    valid_prot = set(protein_dict.keys())
+    valid_lig = set(ligand_dict.keys())
+
+    def _filter_df(df: pd.DataFrame | None, name: str) -> pd.DataFrame | None:
+        if df is None:
+            return None
+        before = len(df)
+        df2 = df[df["Protein"].isin(valid_prot) & df["Ligand"].isin(valid_lig)].copy()
+        df2.reset_index(drop=True, inplace=True)
+        after = len(df2)
+        dropped = before - after
+        if dropped > 0:
+            logger.warning(
+                "%s: filtered pairs %d -> %d (dropped %d missing prot/lig graphs)",
+                name,
+                before,
+                after,
+                dropped,
+            )
+        return df2
+
+    train_df = _filter_df(train_df, "train_df")
+    test_df = _filter_df(test_df, "test_df")
+    valid_df = _filter_df(valid_df, "valid_df")
+
     torch.cuda.empty_cache()
     logger.info("Graph data loaded/initialised.")
-    return protein_dict, ligand_dict
+    return protein_dict, ligand_dict, train_df, test_df, valid_df
 
 
 def prepare_dataloaders(
@@ -755,7 +783,7 @@ def main():
         logger.info(
             f"Data loaded. Train: {len(train_df)}-{len(test_df)}-{len(valid_df)}"
         )
-        protein_dict, ligand_dict = load_or_init_graphs(
+        protein_dict, ligand_dict, train_df, test_df, valid_df = load_or_init_graphs(
             datafolder,
             train_df,
             test_df,
