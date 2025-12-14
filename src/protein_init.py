@@ -24,15 +24,28 @@ logger = get_logger(__name__)
 
 
 def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
-    """Initializes protein graphs from sequences."""
+    """Initializes protein graphs from sequences (FAIR ESM1v/ESM2)."""
     logger.info("Initializing protein graphs from sequences")
     result_dict = {}
     batch_converter = alphabet.get_batch_converter()
 
+    # sensible defaults derived from the model
+    model_layers = int(getattr(model, "num_layers", 0))
+    model_dim = int(getattr(model, "embed_dim", 0))
+
+    # If you want "last layer", use model.num_layers rather than hardcoding 33
+    use_layer = model_layers if model_layers > 0 else 33
+
     for seq in tqdm(seqs):
         seq_feat = seq_feature(seq)
+
         token_repr, contact_map_proba, _ = esm_extract(
-            model, batch_converter, seq, layer=33, approach="last", dim=1280
+            model,
+            batch_converter,
+            seq,
+            layer=use_layer,  # last layer for whatever model is loaded
+            approach="last",
+            dim=model_dim or 1280,  # falls back only if model.embed_dim missing
         )
 
         assert len(contact_map_proba) == len(seq)
@@ -49,6 +62,34 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
         }
 
     return result_dict
+
+
+# def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
+#     """Initializes protein graphs from sequences."""
+#     logger.info("Initializing protein graphs from sequences")
+#     result_dict = {}
+#     batch_converter = alphabet.get_batch_converter()
+
+#     for seq in tqdm(seqs):
+#         seq_feat = seq_feature(seq)
+#         token_repr, contact_map_proba, _ = esm_extract(
+#             model, batch_converter, seq, layer=33, approach="last", dim=1280
+#         )
+
+#         assert len(contact_map_proba) == len(seq)
+#         edge_index, edge_weight = contact_map(contact_map_proba)
+
+#         result_dict[seq] = {
+#             "seq": seq,
+#             "seq_feat": torch.from_numpy(seq_feat),
+#             "token_representation": token_repr.half(),
+#             "num_nodes": len(seq),
+#             "num_pos": torch.arange(len(seq)).reshape(-1, 1),
+#             "edge_index": edge_index,
+#             "edge_weight": edge_weight,
+#         }
+
+#     return result_dict
 
 
 # normalize
@@ -555,11 +596,17 @@ def esm_extract(
 
             batch_tokens = batch_tokens.to(device, non_blocking=True)
 
+            # Decide which layers to request based on aggregation strategy
+            if approach == "last":
+                repr_layers = [layer]
+            else:
+                repr_layers = list(range(1, layer + 1))
+
             # Forward
             with torch.no_grad():
                 results = model(
                     batch_tokens,
-                    repr_layers=[i for i in range(1, layer + 1)],
+                    repr_layers=repr_layers,
                     return_contacts=True,
                 )
 
@@ -575,6 +622,27 @@ def esm_extract(
                     contact_prob_map_np = contacts_raw
             else:
                 contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
+
+            # # Forward
+            # with torch.no_grad():
+            #     results = model(
+            #         batch_tokens,
+            #         repr_layers=[i for i in range(1, layer + 1)],
+            #         return_contacts=True,
+            #     )
+
+            # # logits: (1, L+2, vocab_size) → (L, vocab_size)
+            # logits_np = results["logits"][0].cpu().numpy()[1 : L + 1]
+
+            # # contacts: may be (L+2, L+2) → slice, or already (L, L)
+            # if "contacts" in results:
+            #     contacts_raw = results["contacts"][0].cpu().numpy()
+            #     if contacts_raw.shape[0] == L + 2:
+            #         contact_prob_map_np = contacts_raw[1 : L + 1, 1 : L + 1]
+            #     else:
+            #         contact_prob_map_np = contacts_raw
+            # else:
+            #     contact_prob_map_np = np.zeros((L, L), dtype=np.float32)
 
             # representations: [layer, 1, L+2, dim]
             token_representation = torch.cat(
@@ -604,6 +672,12 @@ def esm_extract(
             logits_np = np.zeros((L, vocab_size), dtype=np.float32)
 
             n_chunks = math.ceil(L / interval)
+
+            # Request only the layers you need
+            if approach == "last":
+                repr_layers = [layer]
+            else:
+                repr_layers = list(range(1, layer + 1))
 
             for s in range(n_chunks):
                 start = s * interval
@@ -635,9 +709,15 @@ def esm_extract(
                 with torch.no_grad():
                     results = model(
                         batch_tokens,
-                        repr_layers=[i for i in range(1, layer + 1)],
+                        repr_layers=repr_layers,
                         return_contacts=True,
                     )
+                # with torch.no_grad():
+                #     results = model(
+                #         batch_tokens,
+                #         repr_layers=[i for i in range(1, layer + 1)],
+                #         return_contacts=True,
+                #     )
 
                 # Local logits (len(temp_seq), vocab_size)
                 local_logits = results["logits"][0].cpu().numpy()[1 : len(temp_seq) + 1]
@@ -672,23 +752,43 @@ def esm_extract(
                     logits_np[row] = logits_np[row] / 2.0
 
                 # Local token representations
-                subtoken_repr = torch.cat(
-                    [results["representations"][i] for i in range(1, layer + 1)]
-                )
-                assert subtoken_repr.size(0) == layer
-
                 if approach == "last":
-                    subtoken_repr = subtoken_repr[-1]
+                    # (1, chunk_len+2, dim)
+                    subtoken_repr = results["representations"][layer]
                 elif approach == "sum":
-                    subtoken_repr = subtoken_repr.sum(dim=0)
+                    # stack: (n_layers, 1, chunk_len+2, dim) -> sum over layers -> (1, chunk_len+2, dim)
+                    subtoken_repr = torch.stack(
+                        [results["representations"][i] for i in repr_layers], dim=0
+                    ).sum(dim=0)
                 elif approach == "mean":
-                    subtoken_repr = subtoken_repr.mean(dim=0)
+                    subtoken_repr = torch.stack(
+                        [results["representations"][i] for i in repr_layers], dim=0
+                    ).mean(dim=0)
                 else:
                     raise ValueError(
                         f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
                     )
 
                 subtoken_repr_np = subtoken_repr.cpu().numpy()[1 : len(temp_seq) + 1]
+
+                # # Local token representations
+                # subtoken_repr = torch.cat(
+                #     [results["representations"][i] for i in range(1, layer + 1)]
+                # )
+                # assert subtoken_repr.size(0) == layer
+
+                # if approach == "last":
+                #     subtoken_repr = subtoken_repr[-1]
+                # elif approach == "sum":
+                #     subtoken_repr = subtoken_repr.sum(dim=0)
+                # elif approach == "mean":
+                #     subtoken_repr = subtoken_repr.mean(dim=0)
+                # else:
+                #     raise ValueError(
+                #         f"Unknown approach='{approach}' (expected 'last', 'sum', 'mean')."
+                #     )
+
+                # subtoken_repr_np = subtoken_repr.cpu().numpy()[1 : len(temp_seq) + 1]
 
                 # Overlap positions for embeddings
                 trow = np.where(token_representation_np[start:end].sum(axis=-1) != 0)[0]
@@ -717,39 +817,6 @@ def esm_extract(
         if return_nan_on_error:
             return _nan_outputs(len(seq))
         raise
-
-
-# def generate_ESM_structure(
-#     model: torch.nn.Module, filename: Path, sequence: str
-# ) -> bool:
-#     model.set_chunk_size(256)
-#     chunk_size = 256
-#     output = None
-
-#     while output is None:
-#         try:
-#             with torch.no_grad():
-#                 output = model.infer_pdb(sequence)
-
-#             with open(filename, "w") as f:
-#                 f.write(output)
-#                 logger.info("saved", filename)
-#         except RuntimeError as e:
-#             if "out of memory" in str(e):
-#                 logger.info("| WARNING: ran out of memory on chunk_size", chunk_size)
-#                 for p in model.parameters():
-#                     if p.grad is not None:
-#                         del p.grad  # free some memory
-#                 torch.cuda.empty_cache()
-#                 chunk_size = chunk_size // 2
-#                 if chunk_size > 2:
-#                     model.set_chunk_size(chunk_size)
-#                 else:
-#                     logger.info("Not enough memory for ESMFold")
-#                     break
-#             else:
-#                 raise e
-#     return output is not None
 
 
 biopython_parser = PDBParser()

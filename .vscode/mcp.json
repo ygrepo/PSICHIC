@@ -1,0 +1,15 @@
+{
+  "mcp": {
+    "servers": {
+      "github-mcp": {
+        "type": "http",
+        "url": "https://api.githubcopilot.com/mcp"
+      },
+      "k-dense-mcp": {
+        "type": "http",
+        "url": "https://mcp.k-dense.ai/claude-scientific-skills/mcp"
+      }
+    }
+  }
+}
+
