@@ -273,7 +273,7 @@ def load_dataframes(
     logger.info("Loading dataframes...")
     train_path = datafolder / "train.csv"
     test_path = datafolder / "test.csv"
-    valid_path = datafolder / "valid.csv"
+    valid_path = datafolder / "val.csv"
     if n > 0:
         train_df = pd.read_csv(train_path, nrows=n)
         test_df = pd.read_csv(test_path, nrows=n)
