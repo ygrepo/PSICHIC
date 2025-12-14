@@ -47,9 +47,10 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
             approach="last",
             dim=model_dim or 1280,  # falls back only if model.embed_dim missing
         )
+
+        L = len(seq)
         if torch.isnan(token_repr).any() or torch.isnan(contact_map_proba).any():
             logger.warning("Protein ESM failed; using zero features (len=%d)", len(seq))
-            L = len(seq)
             token_repr = torch.zeros(
                 (L, model_dim or token_repr.shape[1]), dtype=torch.float32
             )
@@ -60,12 +61,28 @@ def protein_init(model, alphabet, seqs: list[str]) -> dict[str, dict]:
         assert len(contact_map_proba) == len(seq)
         edge_index, edge_weight = contact_map(contact_map_proba)
 
+        # Ensure shapes are consistent
+        assert (
+            token_repr.shape[0] == L
+        ), f"token_repr len mismatch: {token_repr.shape[0]} vs {L}"
+        assert (
+            contact_map_proba.shape[0] == L and contact_map_proba.shape[1] == L
+        ), f"contact_map shape mismatch: {tuple(contact_map_proba.shape)} vs {(L, L)}"
+
+        seq_feat_t = torch.from_numpy(seq_feat)
+        assert (
+            seq_feat_t.shape[0] == L
+        ), f"seq_feat len mismatch: {seq_feat_t.shape[0]} vs {L}"
+
+        num_pos = torch.arange(L).reshape(-1, 1)
+        assert num_pos.shape[0] == L, f"num_pos len mismatch: {num_pos.shape[0]} vs {L}"
+
         result_dict[seq] = {
             "seq": seq,
-            "seq_feat": torch.from_numpy(seq_feat),
+            "seq_feat": seq_feat_t,
             "token_representation": token_repr.half(),
             "num_nodes": len(seq),
-            "num_pos": torch.arange(len(seq)).reshape(-1, 1),
+            "num_pos": num_pos,
             "edge_index": edge_index,
             "edge_weight": edge_weight,
         }
