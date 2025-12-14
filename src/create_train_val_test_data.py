@@ -145,7 +145,7 @@ def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Create train, val, test data")
     parser.add_argument(
-        "--nrows",
+        "--N",
         type=int,
         default=0,
         help="Number of rows to process (for testing)",
@@ -247,9 +247,9 @@ def main():
         logger.info(f"Data file: {data_fn}")
         df = load_data(data_fn)
         logger.info(f"Loaded {len(df)} samples")
-        if args.nrows > 0:
-            df = df.sample(n=args.nrows, random_state=args.seed)
-            logger.info(f"Sampled {len(df)} samples")
+        if args.N > 0:
+            df = df.head(n=args.N)
+            logger.info(f"Selected {len(df)} samples")
         process_data(
             df, args.split_mode, args.dataset_name, Path(args.output_dir), args.seed
         )
