@@ -241,7 +241,7 @@ def main():
         logger.info(f"Split mode: {args.split_mode}")
 
         # Load data
-        data_fn = data_dir / "dataset_{args.dataset_name}_{args.label}"
+        data_fn = data_dir / f"dataset_{args.dataset_name}_{args.label}"
         data_fn = data_fn / "A01_dataset"
         data_fn = data_fn / f"{args.label}_with_features.joblib"
         logger.info(f"Data file: {data_fn}")

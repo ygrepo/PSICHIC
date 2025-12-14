@@ -107,6 +107,7 @@ def get_mae(y, f):
     mae = (np.abs(y - f)).mean()
     return mae
 
+
 def get_sd(y, f):
     f = f.reshape(-1)
     y = y.reshape(-1)
