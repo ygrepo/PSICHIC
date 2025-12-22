@@ -241,6 +241,7 @@ def main():
         logger.info(f"Dataset name: {args.dataset_name}")
         logger.info(f"Label: {args.label}")
         logger.info(f"Split mode: {args.split_mode}")
+        logger.info(f"Seed: {args.seed}")
 
         # Load data
         data_fn = data_dir / f"dataset_{args.dataset_name}_{args.label}"
@@ -253,7 +254,12 @@ def main():
             df = df.head(n=args.N)
             logger.info(f"Selected {len(df)} samples")
         process_data(
-            df, args.split_mode, args.dataset_name, Path(args.output_dir), args.seed
+            df=df,
+            split_mode=args.split_mode,
+            dataset_name=args.dataset_name,
+            label=args.label,
+            output_dir=Path(args.output_dir),
+            seed=args.seed,
         )
         logger.info("Data processing completed successfully.")
 

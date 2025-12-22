@@ -53,6 +53,7 @@ N=10
 combo="${DATASET}_${SPLITMODE}"
 ts=$(date +"%Y%m%d_%H%M%S")
 log_file="${LOG_DIR}/${ts}_create_train_val_test_data_${combo}.log"
+SEED=42
 
 echo "JOBID=${LSB_JOBID:-local}  IDX=${LSB_JOBINDEX:-}  HOST=$(hostname)"
 echo "=== Running ${combo} ==="
@@ -61,6 +62,7 @@ echo "  log_file : ${log_file}"
 echo "  dataset  : ${DATASET}"
 echo "  label    : ${LABEL}"
 echo "  splitmode: ${SPLITMODE}"
+echo "  seed     : ${SEED}"
 
 set +e
 "${PYTHON}" "${MAIN}" \
@@ -71,6 +73,7 @@ set +e
   --label "${LABEL}" \
   --split_mode "${SPLITMODE}" \
   --N "${N}" \
-  --output_dir "${OUTPUT_DIR}"
+  --output_dir "${OUTPUT_DIR}" \
+  --seed "${SEED}"
 exit_code=$?
 set -e
