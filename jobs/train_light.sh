@@ -114,6 +114,8 @@ EPS=1e-8
 BETAS="(0.9,0.999)"
 BATCH_SIZE=16
 N=10
+SAVE_MODEL=False
+LOAD_MODEL_PATH=None
 
 #DATAFOLDER="./dataset/pdb2020"
 DATAFOLDER="./data/${DATASET}_${LABEL}_${SPLITMODE}"
@@ -154,6 +156,8 @@ echo "BETAS: ${BETAS}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Datafolder: ${DATAFOLDER}"
 echo "Trained model path: ${TRAINED_MODEL_PATH}"
+echo "Save model: ${SAVE_MODEL}"
+echo "Load model path: ${LOAD_MODEL_PATH}"
 echo "------------------------------------------------------------"
 
 set +e
@@ -178,7 +182,9 @@ set +e
   --eps "${EPS}" \
   --betas "${BETAS}" \
   --batch_size "${BATCH_SIZE}" \
-  --datafolder "${DATAFOLDER}" 
+  --datafolder "${DATAFOLDER}" \
+  --save_model "${SAVE_MODEL}" \
+  --load_model_path "${LOAD_MODEL_PATH}"
 exit_code=$?
 set -e
 

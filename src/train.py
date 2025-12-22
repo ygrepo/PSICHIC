@@ -179,6 +179,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--nb_mode", type=str2bool, default=False)
 
+    parser.add_argument("--save_model", type=str2bool, default=True)
+    parser.add_argument("--load_model_path", type=Path, default=None)
     parser.add_argument("--log_fn", type=str, default="train.log")
     parser.add_argument(
         "--log_level",
@@ -595,6 +597,7 @@ def initialize_trainer(
     regression_weight: float = 1,
     classification_weight: float = 1,
     multiclassification_weight: float = 1,
+    save_model: bool = True,
 ) -> Trainer:
     """Initializes the training engine."""
 
@@ -633,6 +636,7 @@ def initialize_trainer(
         runid=seed,
         finetune_modules=finetune_modules,
         device=device,
+        save_model=save_model,
     )
 
     # Save the config to the model directory
@@ -687,6 +691,7 @@ def run_evaluation(
     device: str,
     save_interpret: bool,
     ligand_dict: dict,
+    load_model_path: Path | None = None,
 ):
     """Loads the best model and runs final evaluation/screening."""
     logger.info("Loading best checkpoint and predicting test data")
@@ -696,8 +701,9 @@ def run_evaluation(
     year = timestamp.year
     month = timestamp.month  # Month (1-12)
     day = timestamp.day  # Day of the month (1-31)
-    fn = model_path / f"{year}_{month:02d}_{day:02d}_{model_plm_type}_model.pt"
-    model.load_state_dict(torch.load(fn, map_location=device))
+    if load_model_path is not None:
+        logger.info(f"Loading model from: {load_model_path}")
+        model.load_state_dict(torch.load(load_model_path, map_location=device))
 
     screen_df = virtual_screening(
         test_df,
@@ -763,6 +769,7 @@ def main():
         logger.info(f"Multiclassification task: {args.mclassification_task}")
         logger.info(f"Finetune modules: {args.finetune_modules}")
         logger.info(f"Notebook mode: {args.nb_mode}")
+        logger.info(f"Save model: {args.save_model}")
         logger.info(f"Device: {args.device}")
         config_path = args.config_path.resolve()
         config = load_and_merge_config(
@@ -810,15 +817,16 @@ def main():
         )
         model = initialize_model(config, mol_deg, prot_deg, device, trained_model_path)
         engine = initialize_trainer(
-            model,
-            config,
-            train_loader,
-            total_iters,
-            epochs,
-            device,
-            model_path,
-            args.seed,
-            args.finetune_modules,
+            model=model,
+            config=config,
+            train_loader=train_loader,
+            total_iters=total_iters,
+            epochs=epochs,
+            device=device,
+            model_path=model_path,
+            seed=args.seed,
+            finetune_modules=args.finetune_modules,
+            save_model=args.save_model,
         )
 
         # Run Training

@@ -161,6 +161,7 @@ class Trainer(object):
         device: str = "cuda:0",
         skip_test_during_train: bool = False,
         finetune_modules: list[str] | None = None,
+        save_model: bool = True,
     ):
 
         self.model = model
@@ -214,6 +215,7 @@ class Trainer(object):
             self.lr_decay_iters = self.total_iters
         else:
             self.lr_decay_iters = lr_decay_iters
+        self.save_model = save_model
 
     def train_epoch(
         self,
@@ -364,12 +366,16 @@ class Trainer(object):
                         year = timestamp.year
                         month = timestamp.month  # Month (1-12)
                         day = timestamp.day  # Day of the month (1-31)
-                        fn = self.result_path / f"{year}_{month:02d}_{day:02d}_model.pt"
-                        logger.info(f"Saving model to: {fn}")
-                        torch.save(
-                            self.model.state_dict(),
-                            fn,
-                        )
+                        if self.save_model:
+                            fn = (
+                                self.result_path
+                                / f"{year}_{month:02d}_{day:02d}_model.pt"
+                            )
+                            logger.info(f"Saving model to: {fn}")
+                            torch.save(
+                                self.model.state_dict(),
+                                fn,
+                            )
 
                         if self.skip_test_during_train is False:
                             test_result = self.eval(test_loader)
@@ -399,12 +405,16 @@ class Trainer(object):
                         year = timestamp.year
                         month = timestamp.month  # Month (1-12)
                         day = timestamp.day  # Day of the month (1-31)
-                        fn = self.result_path / f"{year}_{month:02d}_{day:02d}_model.pt"
-                        logger.info(f"Saving model to: {fn}")
-                        torch.save(
-                            self.model.state_dict(),
-                            fn,
-                        )
+                        if self.save_model:
+                            fn = (
+                                self.result_path
+                                / f"{year}_{month:02d}_{day:02d}_model.pt"
+                            )
+                            logger.info(f"Saving model to: {fn}")
+                            torch.save(
+                                self.model.state_dict(),
+                                fn,
+                            )
 
                 test_result = {k: round(v, 4) for k, v in test_result.items()}
                 test_str = f"Test Results: " + json.dumps(
@@ -606,15 +616,16 @@ class Trainer(object):
                                 year = timestamp.year
                                 month = timestamp.month  # Month (1-12)
                                 day = timestamp.day  # Day of the month (1-31)
-                                fn = (
-                                    self.result_path
-                                    / f"{year}_{month:02d}_{day:02d}_model.pt"
-                                )
-                                logger.info(f"Saving model to: {fn}")
-                                torch.save(
-                                    self.model.state_dict(),
-                                    fn,
-                                )
+                                if self.save_model:
+                                    fn = (
+                                        self.result_path
+                                        / f"{year}_{month:02d}_{day:02d}_model.pt"
+                                    )
+                                    logger.info(f"Saving model to: {fn}")
+                                    torch.save(
+                                        self.model.state_dict(),
+                                        fn,
+                                    )
 
                                 if self.skip_test_during_train is False:
                                     test_result = self.eval(test_loader)
@@ -642,15 +653,16 @@ class Trainer(object):
                                 year = timestamp.year
                                 month = timestamp.month  # Month (1-12)
                                 day = timestamp.day  # Day of the month (1-31)
-                                fn = (
-                                    self.result_path
-                                    / f"{year}_{month:02d}_{day:02d}_model.pt"
-                                )
-                                logger.info(f"Saving model to: {fn}")
-                                torch.save(
-                                    self.model.state_dict(),
-                                    fn,
-                                )
+                                if self.save_model:
+                                    fn = (
+                                        self.result_path
+                                        / f"{year}_{month:02d}_{day:02d}_model.pt"
+                                    )
+                                    logger.info(f"Saving model to: {fn}")
+                                    torch.save(
+                                        self.model.state_dict(),
+                                        fn,
+                                    )
 
                         test_result = {k: round(v, 4) for k, v in test_result.items()}
                         test_str = "Test Results: " + json.dumps(
@@ -976,6 +988,7 @@ class Trainer(object):
             try:
                 eval_reg_result = evaluate_reg(reg_truths, reg_preds)
             except Exception as e:
+                logger.warning(f"regression evaluation failed: {e}")
                 eval_reg_result = {}
             eval_result.update(eval_reg_result)
 
@@ -985,6 +998,7 @@ class Trainer(object):
             try:
                 eval_cls_result = evaluate_cls(cls_truths, cls_preds, threshold=0.5)
             except Exception as e:
+                logger.warning(f"classification evaluation failed: {e}")
                 eval_cls_result = {}
             eval_result.update(eval_cls_result)
 
@@ -1000,6 +1014,7 @@ class Trainer(object):
                 try:
                     eval_mcls_result = evaluate_mcls(mcls_truths, mcls_preds)
                 except Exception as e:
+                    logger.warning(f"mcls evaluation failed: {e}")
                     eval_mcls_result = {}
                 eval_result.update(eval_mcls_result)
 
