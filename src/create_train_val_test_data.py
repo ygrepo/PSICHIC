@@ -32,7 +32,7 @@ def load_data(path: str) -> pd.DataFrame:
             "ec": "ID",
             "log10_value": "regression_label",
             "Sequence": "Protein",
-            "Smiles": "Ligand",
+            "reactant_smiles": "Ligand",
         },
         inplace=True,
     )
