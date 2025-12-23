@@ -126,7 +126,7 @@ MAIN="src/train.py"
 # export CUDA_VISIBLE_DEVICES=0
 unset PYTORCH_CUDA_ALLOC_CONF
 #export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
+#export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
 # export OMP_NUM_THREADS=1
 # export MKL_NUM_THREADS=1
 
