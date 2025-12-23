@@ -5,15 +5,14 @@
 #BSUB -J train
 #BSUB -P acc_DiseaseGeneCell
 #BSUB -q gpu                  # queue
-#BSUB -gpu "num=1"
+#BSUB -gpu "num=2"
 #BSUB -R h100nvl
 #BSUB -n 1
-#BSUB -R "rusage[mem=128G]"
-#BSUB -W 6:00
+#BSUB -R "rusage[mem=256G]"
+#BSUB -W 100:00
 #BSUB -o logs/train.%J.out
 #BSUB -e logs/train.%J.err
 # --------------------------------
-
 set -Eeo pipefail
 trap 'ec=$?; echo "[ERROR] line ${LINENO} status ${ec}" >&2' ERR
 
@@ -52,6 +51,8 @@ fi
 # shellcheck disable=SC1091
 source "${base_dir}/etc/profile.d/conda.sh"
 
+
+
 # ---- Paths / env ----
 ENV_PREFIX="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.conda/envs/psichic"
 PIP_CACHE_DIR="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.pip_cache"
@@ -69,9 +70,31 @@ PYTHON="${ENV_PREFIX}/bin/python"
 export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
 export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/hf_token.csv"
 
+
+ml proxies/1 || true
+
+
+export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
+mkdir -p "$HF_HOME"
+
+export TORCH_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/"
+mkdir -p "$TORCH_HOME"
+
+export HF_TOKEN_PATH="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/tokens/hf_token.csv"
+
+# MODEL_TYPE="ESMv1"
+# # MODEL_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+# MODEL_PLM_TYPE="ESM2"
+# MODEL_PLM_FN="$TORCH_HOME/esm2_t33_650M_UR50D.pt"
+MODEL_PLM_TYPE="ESMv1"
+MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
+DATASET="catpred"
+LABEL="kcat"
+SPLITMODE="drug"
+
 # ---- Project paths ----
 CONFIG_PATH="config"
-RESULT_PATH="./output/models/PSICHIC/results/exp/"
+RESULT_PATH="./output/models/PSICHIC/results/${DATASET}_${LABEL}_${SPLITMODE}"
 #RESULT_PATH="./output/models/PSICHIC/results/PDB2020_BENCHMARK/"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
@@ -81,27 +104,44 @@ REGRESSION_TASK=True
 CLASSIFICATION_TASK=False
 MCLASSIFICATION_TASK=0
 SAVE_INTERPRET=True
-EPOCHS=1
+EPOCHS=100
 EVALUATE_EPOCH=1
-TOTAL_ITERS=10
-EVALUATE_STEP=10
+TOTAL_ITERS=0
+EVALUATE_STEP=500
 LRATE=1e-4
 EPS=1e-8
 BETAS="(0.9,0.999)"
 BATCH_SIZE=16
 N=0
+SAVE_MODEL=False
+#LOAD_MODEL_PATH=""
 
 #DATAFOLDER="./dataset/pdb2020"
-DATAFOLDER="./data/exp"
+DATAFOLDER="./data/${DATASET}_${LABEL}_${SPLITMODE}"
 
 MAIN="src/train.py"
 
 [[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN} (PWD=$(pwd))"; exit 2; }
 
+# export CUDA_VISIBLE_DEVICES=0
+unset PYTORCH_CUDA_ALLOC_CONF
+#export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
+# export OMP_NUM_THREADS=1
+# export MKL_NUM_THREADS=1
+
+echo "=== GPU status ==="
+nvidia-smi
+echo "=================="
+
+
 echo "Python     : $(command -v "${PYTHON}")"
 echo "Main script: ${MAIN}"
 echo "Result path: ${RESULT_PATH}"
 echo "Model path: ${MODEL_PATH}"
+echo "Config path: ${CONFIG_PATH}"
+echo "Model PLM type: ${MODEL_PLM_TYPE}"
+echo "Model PLM fn: ${MODEL_PLM_FN}"
 echo "Regression task: ${REGRESSION_TASK}"
 echo "Classification task: ${CLASSIFICATION_TASK}"
 echo "Multiclassification task: ${MCLASSIFICATION_TASK}"
@@ -117,6 +157,8 @@ echo "BETAS: ${BETAS}"
 echo "Batch size: ${BATCH_SIZE}"
 echo "Datafolder: ${DATAFOLDER}"
 echo "Trained model path: ${TRAINED_MODEL_PATH}"
+echo "Save model: ${SAVE_MODEL}"
+echo "Load model path: ${LOAD_MODEL_PATH}"
 echo "------------------------------------------------------------"
 
 set +e
@@ -126,6 +168,8 @@ set +e
   --config_path "${CONFIG_PATH}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
+  --model_plm_type "${MODEL_PLM_TYPE}" \
+  --model_plm_fn "${MODEL_PLM_FN}" \
   --save_interpret "${SAVE_INTERPRET}" \
   --regression_task "${REGRESSION_TASK}" \
   --classification_task "${CLASSIFICATION_TASK}" \
@@ -139,7 +183,9 @@ set +e
   --eps "${EPS}" \
   --betas "${BETAS}" \
   --batch_size "${BATCH_SIZE}" \
-  --datafolder "${DATAFOLDER}" 
+  --datafolder "${DATAFOLDER}" \
+  --save_model "${SAVE_MODEL}" \
+  --load_model_path "${LOAD_MODEL_PATH}"
 exit_code=$?
 set -e
 
