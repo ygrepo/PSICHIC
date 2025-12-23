@@ -151,7 +151,7 @@ class Trainer(object):
         total_iters: int,
         result_path: Path,
         warmup_iters: int = 2000,
-        lr_decay_iters: int | None = None,
+        lr_decay_iters: int = 0,
         schedule_lr: bool = True,
         regression_weight: float = 1,
         classification_weight: float = 1,
@@ -203,7 +203,7 @@ class Trainer(object):
         self.skip_test_during_train = skip_test_during_train
 
         self.schedule_lr = schedule_lr
-        if total_iters:
+        if total_iters > 0:
             self.total_iters = total_iters
         else:
             self.total_iters = num_epochs * steps_per_epoch
@@ -211,7 +211,7 @@ class Trainer(object):
         self.lrate = lrate
         self.min_lrate = min_lrate
         self.warmup_iters = warmup_iters
-        if lr_decay_iters is None:
+        if lr_decay_iters > 0:
             self.lr_decay_iters = self.total_iters
         else:
             self.lr_decay_iters = lr_decay_iters

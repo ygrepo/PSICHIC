@@ -35,10 +35,8 @@ logger = get_logger(__name__)
 # Utils
 from src.model_utils import virtual_screening
 
-
 from src.dataset import ProteinMoleculeDataset
 from src.trainer import Trainer
-from src.metrics import evaluate_reg, evaluate_cls, evaluate_mcls
 
 # Preprocessing
 from src.protein_init import protein_init
@@ -144,7 +142,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--total_iters",
         type=int,
-        default=None,
+        default=0,
         help="Total training iterations (overrides epochs)",
     )
     parser.add_argument(
@@ -385,8 +383,11 @@ def load_or_init_graphs(
         return df2
 
     train_df = _filter_df(train_df, "train_df")
+    logger.info(f"Train df filtered to {len(train_df)} samples")
     test_df = _filter_df(test_df, "test_df")
+    logger.info(f"Test df filtered to {len(test_df)} samples")
     valid_df = _filter_df(valid_df, "valid_df")
+    logger.info(f"Valid df filtered to {len(valid_df)} samples")
 
     torch.cuda.empty_cache()
     logger.info("Graph data loaded/initialised.")
@@ -756,7 +757,7 @@ def main():
         logger.info(f"Batch size: {args.batch_size}")
         total_iters = args.total_iters
         epochs = args.epochs
-        if epochs is not None and total_iters is not None:
+        if epochs is not None and total_iters > 0:
             logger.info(
                 "If epochs and total iters are both not None, then we only use iters."
             )
