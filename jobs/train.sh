@@ -5,10 +5,10 @@
 #BSUB -J train
 #BSUB -P acc_DiseaseGeneCell
 #BSUB -q gpu                  # queue
-#BSUB -gpu "num=2"
-#BSUB -R h100nvl
+#BSUB -gpu "num=1"
+#BSUB -R h10080g
 #BSUB -n 1
-#BSUB -R "rusage[mem=512G]"
+#BSUB -R "rusage[mem=256G]"
 #BSUB -W 100:00
 #BSUB -o logs/train.%J.out
 #BSUB -e logs/train.%J.err
