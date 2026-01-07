@@ -8,7 +8,7 @@
 #BSUB -gpu "num=2"
 #BSUB -R h100nvl
 #BSUB -n 1
-#BSUB -R "rusage[mem=256G]"
+#BSUB -R "rusage[mem=512G]"
 #BSUB -W 100:00
 #BSUB -o logs/train.%J.out
 #BSUB -e logs/train.%J.err
