@@ -342,6 +342,10 @@ class Trainer(object):
                 train_str1 = f"Train MSE Loss: {train_reg_loss:.4f}, Train CLS Loss: {train_cls_loss:.4f}, Train MCLS Loss: {train_mcls_loss:.4f}"
                 train_str2 = f"Protein Cluster Region Loss - Ortho Loss: {train_ortho_loss:.4f}, Cluster Loss: {train_cluster_loss:.4f}"
 
+                # Initialize test_result to avoid UnboundLocalError
+                test_result = {}
+                val_str = "Validation: N/A (not evaluated this epoch)"
+
                 if epoch % evaluate_epoch == 0 and val_loader is not None:
                     val_result = self.eval(val_loader)
                     val_result = {k: round(v, 4) for k, v in val_result.items()}
