@@ -7,8 +7,8 @@
 #BSUB -P acc_DiseaseGeneCell
 #BSUB -q gpu
 #BSUB -gpu "num=1"
-#BSUB -R h10080g
-#BSUB -n 16
+#BSUB -R a10080g
+#BSUB -n 2
 #BSUB -R "rusage[mem=32G]"
 #BSUB -R "span[hosts=1]"
 #BSUB -W 48:00
