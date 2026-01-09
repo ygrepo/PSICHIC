@@ -160,6 +160,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sampling_col", type=str, default="", help="Column for weighted sampling"
     )
+    ### Protein length filtering (for memory management)
+    parser.add_argument(
+        "--min_prot_len",
+        type=int,
+        default=0,
+        help="Minimum protein length to include (0=no filter)",
+    )
+    parser.add_argument(
+        "--max_prot_len",
+        type=int,
+        default=0,
+        help="Maximum protein length to include (0=no filter)",
+    )
 
     ### Finetuning / Loading
     parser.add_argument(
@@ -268,8 +281,17 @@ def setup_environment(
 def load_dataframes(
     datafolder: Path,
     n: int = 0,
+    min_prot_len: int = 0,
+    max_prot_len: int = 0,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Loads the train, validation, and test dataframes."""
+    """Loads the train, validation, and test dataframes.
+
+    Args:
+        datafolder: Path to the data folder
+        n: Number of rows to load (0 = all)
+        min_prot_len: Minimum protein length filter (0 = no filter)
+        max_prot_len: Maximum protein length filter (0 = no filter)
+    """
     logger.info("Loading dataframes...")
     train_path = datafolder / "train.csv"
     test_path = datafolder / "test.csv"
@@ -282,6 +304,60 @@ def load_dataframes(
         train_df = pd.read_csv(train_path)
         test_df = pd.read_csv(test_path)
         valid_df = pd.read_csv(valid_path)
+
+    # Apply protein length filtering
+    if min_prot_len > 0 or max_prot_len > 0:
+        train_df, test_df, valid_df = _filter_by_protein_length(
+            train_df, test_df, valid_df, min_prot_len, max_prot_len
+        )
+
+    return train_df, test_df, valid_df
+
+
+def _filter_by_protein_length(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    valid_df: pd.DataFrame | None,
+    min_len: int,
+    max_len: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
+    """Filter dataframes by protein sequence length."""
+
+    def _filter_df(df: pd.DataFrame, name: str) -> pd.DataFrame:
+        if df is None or len(df) == 0:
+            return df
+        before = len(df)
+        prot_lens = df["Protein"].str.len()
+        mask = pd.Series([True] * len(df))
+        if min_len > 0:
+            mask &= prot_lens >= min_len
+        if max_len > 0:
+            mask &= prot_lens <= max_len
+        df_filtered = df[mask].copy().reset_index(drop=True)
+        after = len(df_filtered)
+
+        if after > 0:
+            filtered_lens = df_filtered["Protein"].str.len()
+            logger.info(
+                f"{name}: {before} -> {after} samples "
+                f"(prot_len: {filtered_lens.min()}-{filtered_lens.max()}, "
+                f"mean={filtered_lens.mean():.0f})"
+            )
+        else:
+            logger.warning(f"{name}: {before} -> 0 samples after length filter!")
+        return df_filtered
+
+    filter_desc = []
+    if min_len > 0:
+        filter_desc.append(f">={min_len}")
+    if max_len > 0:
+        filter_desc.append(f"<={max_len}")
+    logger.info(f"Filtering proteins by length: {' and '.join(filter_desc)}")
+
+    train_df = _filter_df(train_df, "train")
+    test_df = _filter_df(test_df, "test")
+    if valid_df is not None:
+        valid_df = _filter_df(valid_df, "valid")
 
     return train_df, test_df, valid_df
 
@@ -826,7 +902,9 @@ def main():
 
         # Load Data
         datafolder = args.datafolder.resolve()
-        train_df, test_df, valid_df = load_dataframes(datafolder, args.n)
+        train_df, test_df, valid_df = load_dataframes(
+            datafolder, args.n, args.min_prot_len, args.max_prot_len
+        )
         logger.info(
             f"Data loaded. Train: {len(train_df)}-{len(test_df)}-{len(valid_df)}"
         )
