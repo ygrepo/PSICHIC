@@ -391,7 +391,46 @@ def load_or_init_graphs(
 
     torch.cuda.empty_cache()
     logger.info("Graph data loaded/initialised.")
+
+    # Log protein length statistics
+    _log_protein_length_stats(train_df, test_df, valid_df)
+
     return protein_dict, ligand_dict, train_df, test_df, valid_df
+
+
+def _log_protein_length_stats(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    valid_df: pd.DataFrame | None,
+) -> None:
+    """Log protein sequence length statistics for memory planning."""
+    all_dfs = [("train", train_df), ("test", test_df)]
+    if valid_df is not None:
+        all_dfs.append(("valid", valid_df))
+
+    for name, df in all_dfs:
+        if df is None or len(df) == 0:
+            logger.warning(f"{name}: No samples")
+            continue
+
+        lengths = df["Protein"].str.len()
+        logger.info(
+            f"{name} protein lengths: "
+            f"count={len(lengths)}, "
+            f"min={lengths.min()}, "
+            f"max={lengths.max()}, "
+            f"mean={lengths.mean():.1f}, "
+            f"median={lengths.median():.1f}, "
+            f"std={lengths.std():.1f}"
+        )
+        # Log proteins that might cause OOM (>1000 residues)
+        long_proteins = (lengths > 1000).sum()
+        very_long_proteins = (lengths > 2000).sum()
+        if long_proteins > 0:
+            logger.warning(
+                f"{name}: {long_proteins} proteins with >1000 residues, "
+                f"{very_long_proteins} with >2000 residues (may cause OOM with batch_size>4)"
+            )
 
 
 def prepare_dataloaders(

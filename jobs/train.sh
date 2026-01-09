@@ -7,9 +7,10 @@
 #BSUB -q gpu                  # queue
 #BSUB -gpu "num=1"
 #BSUB -R h10080g
-#BSUB -n 1
-#BSUB -R "rusage[mem=256G]"
-#BSUB -W 100:00
+#BSUB -n 16
+#BSUB -R "rusage[mem=80G]"
+#BSUB -R "span[hosts=1]"
+#BSUB -W 120:00
 #BSUB -o logs/train.%J.out
 #BSUB -e logs/train.%J.err
 # --------------------------------
@@ -111,7 +112,7 @@ EVALUATE_STEP=500
 LRATE=1e-4
 EPS=1e-8
 BETAS="(0.9,0.999)"
-BATCH_SIZE=16
+BATCH_SIZE=4  # Reduced from 16 to avoid OOM with long proteins
 N=0
 SAVE_MODEL=False
 #LOAD_MODEL_PATH=""
@@ -124,9 +125,8 @@ MAIN="src/train.py"
 [[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN} (PWD=$(pwd))"; exit 2; }
 
 # export CUDA_VISIBLE_DEVICES=0
-unset PYTORCH_CUDA_ALLOC_CONF
-#export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:128"
-#export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:128"
+# Enable expandable segments to reduce memory fragmentation
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 # export OMP_NUM_THREADS=1
 # export MKL_NUM_THREADS=1
 
