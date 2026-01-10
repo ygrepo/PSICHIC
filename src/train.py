@@ -200,6 +200,33 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Logging level",
     )
+
+    # Experiment tracking for CSV output
+    parser.add_argument(
+        "--data_name",
+        type=str,
+        default="",
+        help="Dataset name for CSV tracking (e.g., 'catpred', 'EITLEM')",
+    )
+    parser.add_argument(
+        "--label_name",
+        type=str,
+        default="",
+        help="Label name for CSV tracking (e.g., 'kcat', 'km')",
+    )
+    parser.add_argument(
+        "--embedding_name",
+        type=str,
+        default="",
+        help="PLM embedding name for CSV tracking (e.g., 'ESMv1', 'ESM2')",
+    )
+    parser.add_argument(
+        "--split_name",
+        type=str,
+        default="",
+        help="Split mode for CSV tracking (e.g., 'drug', 'random')",
+    )
+
     args = parser.parse_args()
 
     return args
@@ -714,6 +741,11 @@ def initialize_trainer(
     classification_weight: float = 1,
     multiclassification_weight: float = 1,
     save_model: bool = True,
+    # Experiment tracking
+    data_name: str = "",
+    label_name: str = "",
+    embedding_name: str = "",
+    split_name: str = "",
 ) -> Trainer:
     """Initializes the training engine."""
 
@@ -753,6 +785,11 @@ def initialize_trainer(
         finetune_modules=finetune_modules,
         device=device,
         save_model=save_model,
+        # Experiment tracking
+        data_name=data_name,
+        label_name=label_name,
+        embedding_name=embedding_name,
+        split_name=split_name,
     )
 
     # Save the config to the model directory
@@ -945,6 +982,11 @@ def main():
             seed=args.seed,
             finetune_modules=args.finetune_modules,
             save_model=args.save_model,
+            # Experiment tracking
+            data_name=args.data_name,
+            label_name=args.label_name,
+            embedding_name=args.embedding_name,
+            split_name=args.split_name,
         )
 
         # Run Training

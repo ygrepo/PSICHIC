@@ -72,7 +72,7 @@ REGRESSION_TASK=True
 CLASSIFICATION_TASK=False
 MCLASSIFICATION_TASK=0
 SAVE_INTERPRET=False
-EPOCHS=30
+EPOCHS=100
 EVALUATE_EPOCH=5
 TOTAL_ITERS=0
 LRATE=1e-5              # Lower learning rate for fine-tuning
@@ -126,7 +126,11 @@ set +e
   --datafolder "${DATAFOLDER}" \
   --save_model "${SAVE_MODEL}" \
   --min_prot_len "${MIN_PROT_LEN}" \
-  --max_prot_len "${MAX_PROT_LEN}"
+  --max_prot_len "${MAX_PROT_LEN}" \
+  --data_name "${DATASET}" \
+  --label_name "${LABEL}" \
+  --embedding_name "ESMv1" \
+  --split_name "${SPLITMODE}"
 exit_code=$?
 set -e
 

@@ -126,7 +126,11 @@ set +e
   --datafolder "${DATAFOLDER}" \
   --save_model "${SAVE_MODEL}" \
   --min_prot_len "${MIN_PROT_LEN}" \
-  --max_prot_len "${MAX_PROT_LEN}"
+  --max_prot_len "${MAX_PROT_LEN}" \
+  --data_name "${DATASET}" \
+  --label_name "${LABEL}" \
+  --embedding_name "ESMv1" \
+  --split_name "${SPLITMODE}"
 exit_code=$?
 set -e
 

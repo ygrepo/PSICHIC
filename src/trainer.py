@@ -3,6 +3,7 @@ from torch import nn
 import json
 import math
 import sys
+import csv
 from pathlib import Path
 from torch_geometric.loader import DataLoader
 from datetime import datetime
@@ -20,6 +21,97 @@ from src.models.net import net
 from src.metrics import evaluate_cls, evaluate_mcls, evaluate_reg
 
 logger = get_logger(__name__)
+
+
+def save_results_csv(
+    csv_path: Path,
+    data: str,
+    label: str,
+    embedding: str,
+    split: str,
+    data_split: str,
+    epoch: int,
+    results: dict,
+):
+    """Save evaluation results to a CSV file for experiment tracking.
+
+    Args:
+        csv_path: Path to the CSV file
+        data: Dataset name (e.g., 'catpred', 'EITLEM')
+        label: Label type (e.g., 'kcat', 'km')
+        embedding: PLM embedding type (e.g., 'ESMv1', 'ESM2')
+        split: Split mode (e.g., 'drug', 'random', 'cold_protein')
+        data_split: Which split (e.g., 'Training', 'Validation', 'Test')
+        epoch: Current epoch number
+        results: Dictionary of evaluation metrics
+    """
+    # Define column order
+    columns = [
+        "Timestamp",
+        "Data",
+        "Label",
+        "Embedding",
+        "Split",
+        "Data_Split",
+        "Epoch",
+        "RMSE",
+        "MSE",
+        "MAE",
+        "R2",
+        "Pearson",
+        "Spearman",
+        "CI",
+        "SD",
+        "RM2",
+        "ROC",
+        "PRC",
+        "F1",
+        "Recall",
+        "Precision",
+        "Macro_F1",
+        "Micro_F1",
+        "Weighted_F1",
+    ]
+
+    # Check if file exists to write header
+    file_exists = csv_path.exists()
+
+    # Build row
+    row = {
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Data": data,
+        "Label": label,
+        "Embedding": embedding,
+        "Split": split,
+        "Data_Split": data_split,
+        "Epoch": epoch,
+        # Regression metrics
+        "RMSE": results.get("rmse", ""),
+        "MSE": results.get("mse", ""),
+        "MAE": results.get("mae", ""),
+        "R2": results.get("rm2", ""),  # rm2 is similar to R2
+        "Pearson": results.get("pearson", ""),
+        "Spearman": results.get("spearman", ""),
+        "CI": results.get("ci", ""),
+        "SD": results.get("sd", ""),
+        "RM2": results.get("rm2", ""),
+        # Classification metrics
+        "ROC": results.get("roc", ""),
+        "PRC": results.get("prc", ""),
+        "F1": results.get("f1", ""),
+        "Recall": results.get("recall", ""),
+        "Precision": results.get("precision", ""),
+        # Multi-class metrics
+        "Macro_F1": results.get("macro_f1", ""),
+        "Micro_F1": results.get("micro_f1", ""),
+        "Weighted_F1": results.get("weighted_f1", ""),
+    }
+
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 def masked_mse_loss(pred, true):
@@ -162,6 +254,12 @@ class Trainer(object):
         skip_test_during_train: bool = False,
         finetune_modules: list[str] | None = None,
         save_model: bool = True,
+        # Experiment tracking
+        experiment_name: str = "",
+        data_name: str = "",
+        label_name: str = "",
+        embedding_name: str = "",
+        split_name: str = "",
     ):
 
         self.model = model
@@ -216,6 +314,13 @@ class Trainer(object):
         else:
             self.lr_decay_iters = lr_decay_iters
         self.save_model = save_model
+
+        # Experiment tracking
+        self.data_name = data_name
+        self.label_name = label_name
+        self.embedding_name = embedding_name
+        self.split_name = split_name
+        self.csv_path = result_path / "experiment_results.csv"
 
     def train_epoch(
         self,
@@ -454,6 +559,31 @@ class Trainer(object):
                     f.write(train_str2 + "\n")
                     f.write(val_str + "\n")
                     f.write(test_str + "\n")
+
+                # Save to CSV for experiment tracking
+                if self.data_name:
+                    if val_result:
+                        save_results_csv(
+                            self.csv_path,
+                            self.data_name,
+                            self.label_name,
+                            self.embedding_name,
+                            self.split_name,
+                            "Validation",
+                            epoch,
+                            val_result,
+                        )
+                    if test_result:
+                        save_results_csv(
+                            self.csv_path,
+                            self.data_name,
+                            self.label_name,
+                            self.embedding_name,
+                            self.split_name,
+                            "Test",
+                            epoch,
+                            test_result,
+                        )
 
     def train_step(
         self,
