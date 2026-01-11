@@ -112,6 +112,7 @@ def save_results_csv(
         if not file_exists:
             writer.writeheader()
         writer.writerow(row)
+    logger.info(f"Results saved to: {csv_path}")
 
 
 def masked_mse_loss(pred, true):

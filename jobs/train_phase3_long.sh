@@ -62,7 +62,7 @@ SPLITMODE="drug"
 
 CONFIG_PATH="config"
 # Load from Phase 2
-TRAINED_MODEL_PATH="./output/models/PSICHIC/curriculum/${DATASET}_${LABEL}_${SPLITMODE}/phase2_medium"
+TRAINED_MODEL_PATH="./output/models/PSICHIC/curriculum/${DATASET}_${LABEL}_${SPLITMODE}/phase2_medium/save_models"
 RESULT_PATH="./output/models/PSICHIC/curriculum/${DATASET}_${LABEL}_${SPLITMODE}/phase3_long"
 mkdir -p "${RESULT_PATH}"
 MODEL_PATH="${RESULT_PATH}/save_models"
