@@ -56,6 +56,8 @@ export HF_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/models"
 export TORCH_HOME="/sc/arion/projects/DiseaseGeneCell/Huang_lab_data/.torch_hub/checkpoints/"
 
 # ---- PHASE 2 SETTINGS ----
+MODEL_PLM_TYPE="ESMv1"
+MODEL_PLM_FN="$TORCH_HOME/esm1v_t33_650M_UR90S_5.pt"
 DATASET="catpred"
 LABEL="kcat"
 SPLITMODE="drug"
@@ -111,6 +113,8 @@ set +e
   --config_path "${CONFIG_PATH}" \
   --result_path "${RESULT_PATH}" \
   --model_path "${MODEL_PATH}" \
+  --model_plm_type "${MODEL_PLM_TYPE}" \
+  --model_plm_fn "${MODEL_PLM_FN}" \
   --trained_model_path "${TRAINED_MODEL_PATH}" \
   --finetune_modules "${FINETUNE_MODULES}" \
   --save_interpret "${SAVE_INTERPRET}" \
@@ -129,7 +133,7 @@ set +e
   --max_prot_len "${MAX_PROT_LEN}" \
   --data_name "${DATASET}" \
   --label_name "${LABEL}" \
-  --embedding_name "ESMv1" \
+  --embedding_name "${MODEL_PLM_TYPE}" \
   --split_name "${SPLITMODE}"
 exit_code=$?
 set -e
