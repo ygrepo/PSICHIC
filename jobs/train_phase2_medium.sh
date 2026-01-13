@@ -9,7 +9,7 @@
 #BSUB -gpu "num=1"
 #BSUB -R a10080g
 #BSUB -n 4                        # Increased cores to help with data loading
-#BSUB -R "rusage[mem=64G]"        # CRITICAL FIX: Increased from 32G to 64G to prevent OOM
+#BSUB -R "rusage[mem=32G]"        # CRITICAL FIX: Increased from 32G to 64G to prevent OOM
 #BSUB -R "span[hosts=1]"
 #BSUB -W 48:00
 #BSUB -o logs/train_p2.%J.out
