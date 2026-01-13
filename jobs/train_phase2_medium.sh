@@ -8,8 +8,8 @@
 #BSUB -q gpu
 #BSUB -gpu "num=1"
 #BSUB -R a10080g
-#BSUB -n 2
-#BSUB -R "rusage[mem=8G]"
+#BSUB -n 4                        # Increased cores to help with data loading
+#BSUB -R "rusage[mem=64G]"        # CRITICAL FIX: Increased from 32G to 64G to prevent OOM
 #BSUB -R "span[hosts=1]"
 #BSUB -W 48:00
 #BSUB -o logs/train_p2.%J.out
@@ -83,20 +83,28 @@ BETAS="(0.9,0.999)"
 SAVE_MODEL=True
 
 # KEY SETTINGS FOR PHASE 2
-BATCH_SIZE=4            # Smaller batch for medium proteins
-MIN_PROT_LEN=501        # Proteins > 500
-MAX_PROT_LEN=1500       # Proteins ≤ 1500
+# Note: If you still OOM on GPU, reduce BATCH_SIZE to 2
+BATCH_SIZE=4            
+MIN_PROT_LEN=501        
+MAX_PROT_LEN=1500       
 
-# Fine-tune only interaction and output layers (freeze encoders & convolutions)
+# Fine-tune only interaction and output layers
 FINETUNE_MODULES="['inter_convs','reg_out','cls_out','mcls_out','mol_out','prot_out']"
 
 DATAFOLDER="./data/${DATASET}_${LABEL}_${SPLITMODE}"
 MAIN="src/train.py"
 
-[[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found"; exit 2; }
-[[ -d "${TRAINED_MODEL_PATH}" ]] || { echo "[ERROR] Phase 1 model not found: ${TRAINED_MODEL_PATH}"; exit 2; }
+# ---- Pre-flight Checks ----
+[[ -f "${MAIN}" ]] || { echo "[ERROR] MAIN not found: ${MAIN}"; exit 2; }
+# Check if Phase 1 model actually exists (prevent waiting in queue for nothing)
+if [ ! -d "${TRAINED_MODEL_PATH}" ] || [ -z "$(ls -A ${TRAINED_MODEL_PATH}/*.pt 2>/dev/null)" ]; then
+    echo "[ERROR] No Phase 1 model found in: ${TRAINED_MODEL_PATH}"
+    echo "Please ensure Phase 1 ran successfully."
+    exit 2
+fi
 
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+# Helps with memory fragmentation on GPU for variable length proteins
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512"
 
 echo "=== GPU status ===" && nvidia-smi && echo "=================="
 echo "Phase 2 Settings:"
@@ -140,8 +148,7 @@ set -e
 
 if [[ ${exit_code} -eq 0 ]]; then
   echo "[OK] Phase 2 finished at $(date)"
-  echo "Next: Run phase 3 with --trained_model_path ${RESULT_PATH}"
+  echo "Next: Run phase 3 with --trained_model_path ${RESULT_PATH}/save_models"
 else
   echo "[ERROR] exit code ${exit_code}" && exit ${exit_code}
 fi
-
