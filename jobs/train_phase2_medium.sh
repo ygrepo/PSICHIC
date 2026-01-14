@@ -83,10 +83,9 @@ BETAS="(0.9,0.999)"
 SAVE_MODEL=True
 
 # KEY SETTINGS FOR PHASE 2
-# Note: If you still OOM on GPU, reduce BATCH_SIZE to 2
-BATCH_SIZE=4            
-MIN_PROT_LEN=501        
-MAX_PROT_LEN=1500       
+BATCH_SIZE=2            # Reduced for memory safety with medium proteins
+MIN_PROT_LEN=501
+MAX_PROT_LEN=1500
 
 # Fine-tune only interaction and output layers
 FINETUNE_MODULES="['inter_convs','reg_out','cls_out','mcls_out','mol_out','prot_out']"
@@ -103,8 +102,8 @@ if [ ! -d "${TRAINED_MODEL_PATH}" ] || [ -z "$(ls -A ${TRAINED_MODEL_PATH}/*.pt 
     exit 2
 fi
 
-# Helps with memory fragmentation on GPU for variable length proteins
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True,max_split_size_mb:512"
+# Disable expandable_segments (can cause issues), use max_split_size only
+export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:256"
 
 echo "=== GPU status ===" && nvidia-smi && echo "=================="
 echo "Phase 2 Settings:"
